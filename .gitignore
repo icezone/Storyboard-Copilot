@@ -28,4 +28,4 @@ ComfyUI_frontend/
 Henji-AI/
 
 .claude/settings.json
-.cursor/mcp.json
+.cursor/mcp.json.worktrees/
