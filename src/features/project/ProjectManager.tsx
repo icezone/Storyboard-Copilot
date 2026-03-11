@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Plus, FolderOpen, Pencil, Trash2 } from 'lucide-react';
 import { useProjectStore } from '@/stores/projectStore';
 import { UI_CONTENT_OVERLAY_INSET_CLASS } from '@/components/ui/motion';
-import { UiSelect } from '@/components/ui/primitives';
+import { UiButton, UiSelect } from '@/components/ui/primitives';
 import { RenameDialog } from './RenameDialog';
 
 type ProjectSortField = 'name' | 'createdAt' | 'updatedAt';
@@ -95,14 +95,10 @@ export function ProjectManager() {
               </UiSelect>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={handleCreateProject}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
-          >
+          <UiButton type="button" variant="primary" onClick={handleCreateProject} className="gap-2">
             <Plus className="w-5 h-5" />
             {t('project.newProject')}
-          </button>
+          </UiButton>
         </div>
 
         {projects.length === 0 ? (

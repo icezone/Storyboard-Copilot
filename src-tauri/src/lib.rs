@@ -7,6 +7,7 @@ use std::time::Duration;
 use commands::ai as ai_commands;
 use commands::image;
 use commands::project_state;
+use commands::update;
 use tauri::Manager;
 use tracing::{info, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -183,6 +184,7 @@ pub fn run() {
             project_state::update_project_viewport_record,
             project_state::rename_project_record,
             project_state::delete_project_record,
+            update::check_latest_release_tag,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

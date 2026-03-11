@@ -1,4 +1,6 @@
 import { getVersion } from '@tauri-apps/api/app';
+import { isTauri } from '@tauri-apps/api/core';
+import { checkLatestReleaseTag } from '../../../commands/update';
 
 const GITHUB_LATEST_RELEASE_API = 'https://api.github.com/repos/henjicc/Storyboard-Copilot/releases/latest';
 const VERSION_SUPPRESSION_STORAGE_KEY = 'storyboard:update-check:version-suppressions';
@@ -151,23 +153,34 @@ export async function checkForUpdate(): Promise<UpdateCheckResult> {
     const timeoutId = window.setTimeout(() => controller.abort(), 8000);
 
     let latestTag = '';
-    try {
-      const response = await fetch(GITHUB_LATEST_RELEASE_API, {
-        method: 'GET',
-        headers: {
-          Accept: 'application/vnd.github+json',
-        },
-        signal: controller.signal,
-      });
 
-      if (!response.ok) {
+    if (isTauri()) {
+      try {
+        latestTag = normalizeVersion((await checkLatestReleaseTag()) ?? '');
+      } catch {
         return { hasUpdate: false, error: 'network' };
+      } finally {
+        window.clearTimeout(timeoutId);
       }
+    } else {
+      try {
+        const response = await fetch(GITHUB_LATEST_RELEASE_API, {
+          method: 'GET',
+          headers: {
+            Accept: 'application/vnd.github+json',
+          },
+          signal: controller.signal,
+        });
 
-      const data = (await response.json()) as GithubLatestReleaseResponse;
-      latestTag = normalizeVersion(data.tag_name ?? '');
-    } finally {
-      window.clearTimeout(timeoutId);
+        if (!response.ok) {
+          return { hasUpdate: false, error: 'network' };
+        }
+
+        const data = (await response.json()) as GithubLatestReleaseResponse;
+        latestTag = normalizeVersion(data.tag_name ?? '');
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
     }
 
     if (!latestTag) {
