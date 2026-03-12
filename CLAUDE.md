@@ -2,10 +2,11 @@
 
 ## 1. 项目目标与技术栈
 
-- 产品目标：基于节点画布进行图片上传、AI 生成/编辑、工具处理（裁剪/标注/分镜）。
+- 产品目标：基于节点画布进行图片上传、AI 生成/编辑、工具处理（裁剪/标注/分镜）、视频生成。
 - 前端：React + TypeScript + Zustand + @xyflow/react + TailwindCSS。
 - 后端：Tauri 2 + Rust（命令式接口）+ SQLite（rusqlite，WAL）。
 - 关键原则：解耦、可扩展、可回归验证、自动持久化、交互性能优先。
+- 多媒体支持：图片生成/编辑（同步）、视频生成（异步轮询）。
 
 ## 2. 代码库浏览顺序
 
@@ -40,15 +41,20 @@
 
 5. 模型与供应商适配
 - `src/features/canvas/models/types.ts`
-- `src/features/canvas/models/registry.ts`
+- `src/features/canvas/models/registry.ts`（图片模型）
+- `src/features/canvas/models/videoRegistry.ts`（视频模型）
 - `src/features/canvas/models/image/*`
+- `src/features/canvas/models/video/*`
 - `src/features/canvas/models/providers/*`
 
 6. Tauri 命令与持久化
 - `src/commands/*.ts`
 - `src/commands/projectState.ts`
+- `src/commands/video.ts`（视频生成命令）
 - `src-tauri/src/commands/*.rs`
 - `src-tauri/src/commands/project_state.rs`
+- `src-tauri/src/commands/video.rs`（视频后端命令）
+- `src-tauri/src/ai/video/*`（视频 Provider 体系）
 - `src-tauri/src/lib.rs`
 
 ## 3. 开发工作流
@@ -175,7 +181,7 @@ npm run release -- patch --notes-file docs/releases/v0.1.12.md
 
 ## 8. 模型与工具扩展规范
 
-### 8.1 新模型接入
+### 8.1 新图片模型接入
 
 - 一模型一文件，放到 `src/features/canvas/models/image/<provider>/`。
 - 在模型定义中声明：
@@ -184,6 +190,62 @@ npm run release -- patch --notes-file docs/releases/v0.1.12.md
   - 支持分辨率/比例
   - 默认参数
   - 请求映射函数 `resolveRequest`
+
+### 8.1.1 新视频模型接入
+
+- 一模型一文件，放到 `src/features/canvas/models/video/<provider>/`。
+- 文件必须导出 `videoModel: VideoModelDefinition`（供自动发现机制识别）。
+- 在模型定义中声明：
+  - `id`：格式为 `{provider}/{model}`（如 `kling/kling-3.0`）
+  - `mediaType: 'video'`
+  - `displayName`、`providerId`、`description`
+  - `eta`、`expectedDurationMs`（用于前端进度条估算）
+  - `durations`：支持的时长选项（如 3s、5s、10s、15s）
+  - `aspectRatios`：支持的宽高比选项（如 16:9、9:16、1:1）
+  - `supportsAudio`、`supportsSeed`、`supportsImageToVideo`：功能开关
+  - `extraParamsSchema`：额外参数定义（如 multi_shots、kling_elements）
+  - `defaultExtraParams`：默认值
+- 自动发现机制：`videoRegistry.ts` 使用 `import.meta.glob('./video/**/*.ts')` 扫描所有文件。
+
+### 8.1.2 新视频 Provider 接入
+
+**后端（Rust）：**
+
+1. 创建 `src-tauri/src/ai/video/providers/{provider}/mod.rs`。
+2. 实现 `VideoProvider` trait：
+   ```rust
+   #[async_trait::async_trait]
+   impl VideoProvider for {Provider}Provider {
+       fn name(&self) -> &str { "{provider}" }
+       fn supports_model(&self, model: &str) -> bool { /* ... */ }
+       fn list_models(&self) -> Vec<String> { /* ... */ }
+       async fn set_api_key(&self, api_key: String) -> Result<(), VideoError> { /* ... */ }
+       async fn generate(&self, request: VideoGenerateRequest) -> Result<String, VideoError> { /* ... */ }
+       async fn get_status(&self, job_id: &str) -> Result<VideoJobStatus, VideoError> { /* ... */ }
+   }
+   ```
+3. 在 `providers/mod.rs` 的 `build_default_video_providers()` 中注册。
+4. 实现异步任务模式：
+   - `generate()` 提交任务，返回 `job_id`
+   - `get_status()` 轮询状态，映射到 `VideoJobState`（Pending/Processing/Completed/Failed）
+   - 完成时返回 `video_url`
+
+**前端（TypeScript）：**
+
+1. 创建 `src/features/canvas/models/providers/{provider}.ts`，导出 `ModelProviderDefinition`。
+2. 创建 `src/features/canvas/models/video/{provider}/{model}.ts`，导出 `videoModel`。
+3. 模型会被自动发现并注册到 `videoRegistry`。
+
+**参考文档：**
+- 详细实现指南：`docs/video-generation-implementation.md`（600+ 行，包含完整示例）
+- 设计规范：`docs/superpowers/specs/2026-03-12-video-generation-design.md`
+
+**视频生成特性：**
+- 异步轮询模式（3 秒间隔，前端自动重试）
+- 帧选择 UI（起始帧 + 结束帧，支持图生视频）
+- 自动创建下游结果节点（VideoResultNode）
+- LRU 缓存管理（5GB 限制，30 天保留期）
+- 预设下载路径（快速保存到常用目录）
 
 ### 8.2 新工具接入
 
