@@ -8,7 +8,7 @@ import {
   useEffect,
   useRef,
 } from 'react';
-import { Handle, Position, type NodeProps } from '@xyflow/react';
+import { Handle, Position, useUpdateNodeInternals, type NodeProps } from '@xyflow/react';
 import { Sparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -31,9 +31,15 @@ import { resolveErrorContent, showErrorDialog } from '@/features/canvas/applicat
 import {
   detectAspectRatio,
   parseAspectRatio,
-  prepareNodeImage,
   resolveImageDisplayUrl,
 } from '@/features/canvas/application/imageData';
+import {
+  buildGenerationErrorReport,
+  CURRENT_RUNTIME_SESSION_ID,
+  createReferenceImagePlaceholders,
+  getRuntimeDiagnostics,
+  type GenerationDebugContext,
+} from '@/features/canvas/application/generationErrorReport';
 import {
   findReferenceTokens,
   insertReferenceToken,
@@ -44,10 +50,13 @@ import {
   DEFAULT_IMAGE_MODEL_ID,
   getImageModel,
   listImageModels,
+  resolveImageModelResolution,
+  resolveImageModelResolutions,
 } from '@/features/canvas/models';
 import { GRSAI_NANO_BANANA_PRO_MODEL_ID } from '@/features/canvas/models/image/grsai/nanoBananaPro';
 import { FAL_NANO_BANANA_2_MODEL_ID } from '@/features/canvas/models/image/fal/nanoBanana2';
 import { KIE_NANO_BANANA_2_MODEL_ID } from '@/features/canvas/models/image/kie/nanoBanana2';
+import { resolveModelPriceDisplay } from '@/features/canvas/pricing';
 import {
   NODE_CONTROL_CHIP_CLASS,
   NODE_CONTROL_ICON_CLASS,
@@ -57,6 +66,7 @@ import {
 } from '@/features/canvas/ui/nodeControlStyles';
 import { ModelParamsControls } from '@/features/canvas/ui/ModelParamsControls';
 import { CanvasNodeImage } from '@/features/canvas/ui/CanvasNodeImage';
+import { NodePriceBadge } from '@/features/canvas/ui/NodePriceBadge';
 import { UiButton } from '@/components/ui';
 import { useCanvasStore } from '@/stores/canvasStore';
 import { useSettingsStore } from '@/stores/settingsStore';
@@ -79,13 +89,12 @@ interface PickerAnchor {
 
 const PICKER_FALLBACK_ANCHOR: PickerAnchor = { left: 8, top: 8 };
 const PICKER_Y_OFFSET_PX = 20;
-const IMAGE_EDIT_NODE_MIN_WIDTH = 420;
-const IMAGE_EDIT_NODE_MIN_HEIGHT = 280;
+const IMAGE_EDIT_NODE_MIN_WIDTH = 390;
+const IMAGE_EDIT_NODE_MIN_HEIGHT = 180;
 const IMAGE_EDIT_NODE_MAX_WIDTH = 1400;
 const IMAGE_EDIT_NODE_MAX_HEIGHT = 1000;
 const IMAGE_EDIT_NODE_DEFAULT_WIDTH = 520;
 const IMAGE_EDIT_NODE_DEFAULT_HEIGHT = 320;
-const AI_RESULT_TITLE_MAX_CHARS = 10;
 
 function getTextareaCaretOffset(
   textarea: HTMLTextAreaElement,
@@ -212,15 +221,12 @@ function buildAiResultNodeTitle(prompt: string, fallbackTitle: string): string {
     return fallbackTitle;
   }
 
-  if (normalizedPrompt.length <= AI_RESULT_TITLE_MAX_CHARS) {
-    return normalizedPrompt;
-  }
-
-  return `${normalizedPrompt.slice(0, AI_RESULT_TITLE_MAX_CHARS)}...`;
+  return normalizedPrompt;
 }
 
 export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageEditNodeProps) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const updateNodeInternals = useUpdateNodeInternals();
   const [error, setError] = useState<string | null>(null);
 
   const rootRef = useRef<HTMLDivElement>(null);
@@ -242,6 +248,11 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
   const addEdge = useCanvasStore((state) => state.addEdge);
   const apiKeys = useSettingsStore((state) => state.apiKeys);
   const grsaiNanoBananaProModel = useSettingsStore((state) => state.grsaiNanoBananaProModel);
+  const showNodePrice = useSettingsStore((state) => state.showNodePrice);
+  const priceDisplayCurrencyMode = useSettingsStore((state) => state.priceDisplayCurrencyMode);
+  const usdToCnyRate = useSettingsStore((state) => state.usdToCnyRate);
+  const preferDiscountedPrice = useSettingsStore((state) => state.preferDiscountedPrice);
+  const grsaiCreditTierId = useSettingsStore((state) => state.grsaiCreditTierId);
 
   const incomingImages = useMemo(
     () => graphImageResolver.collectInputImages(id, nodes, edges),
@@ -269,13 +280,23 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
     return getImageModel(modelId);
   }, [data.model]);
   const providerApiKey = apiKeys[selectedModel.providerId] ?? '';
+  const effectiveExtraParams = useMemo(
+    () => ({
+      ...(data.extraParams ?? {}),
+      ...(selectedModel.id === GRSAI_NANO_BANANA_PRO_MODEL_ID
+        ? { grsai_pro_model: grsaiNanoBananaProModel }
+        : {}),
+    }),
+    [data.extraParams, grsaiNanoBananaProModel, selectedModel.id]
+  );
+  const resolutionOptions = useMemo(
+    () => resolveImageModelResolutions(selectedModel, { extraParams: effectiveExtraParams }),
+    [effectiveExtraParams, selectedModel]
+  );
 
   const selectedResolution = useMemo(
-    () =>
-      selectedModel.resolutions.find((item) => item.value === data.size) ??
-      selectedModel.resolutions.find((item) => item.value === selectedModel.defaultResolution) ??
-      selectedModel.resolutions[0],
-    [data.size, selectedModel]
+    () => resolveImageModelResolution(selectedModel, data.size, { extraParams: effectiveExtraParams }),
+    [data.size, effectiveExtraParams, selectedModel]
   );
 
   const aspectRatioOptions = useMemo<AspectRatioChoice[]>(
@@ -300,6 +321,60 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
     selectedModel.id === FAL_NANO_BANANA_2_MODEL_ID ||
     selectedModel.id === KIE_NANO_BANANA_2_MODEL_ID;
   const webSearchEnabled = Boolean(data.extraParams?.enable_web_search);
+  const resolvedPriceDisplay = useMemo(
+    () =>
+      showNodePrice
+        ? resolveModelPriceDisplay(selectedModel, {
+          resolution: selectedResolution.value,
+          extraParams: effectiveExtraParams,
+          language: i18n.language,
+          settings: {
+            displayCurrencyMode: priceDisplayCurrencyMode,
+            usdToCnyRate,
+            preferDiscountedPrice,
+            grsaiCreditTierId,
+          },
+        })
+        : null,
+    [
+      grsaiCreditTierId,
+      i18n.language,
+      preferDiscountedPrice,
+      priceDisplayCurrencyMode,
+      effectiveExtraParams,
+      selectedModel,
+      selectedResolution.value,
+      showNodePrice,
+      usdToCnyRate,
+    ]
+  );
+  const resolvedPriceTooltip = useMemo(() => {
+    if (!resolvedPriceDisplay) {
+      return undefined;
+    }
+
+    const lines = [resolvedPriceDisplay.label];
+    if (resolvedPriceDisplay.nativeLabel) {
+      lines.push(t('pricing.nativePrice', { value: resolvedPriceDisplay.nativeLabel }));
+    }
+    if (resolvedPriceDisplay.originalLabel) {
+      lines.push(t('pricing.originalPrice', { value: resolvedPriceDisplay.originalLabel }));
+    }
+    if (resolvedPriceDisplay.pointsCost) {
+      lines.push(t('pricing.pointsCost', { count: resolvedPriceDisplay.pointsCost }));
+    }
+    if (resolvedPriceDisplay.grsaiCreditTier) {
+      lines.push(
+        t('pricing.grsaiTier', {
+          price: resolvedPriceDisplay.grsaiCreditTier.priceCny.toFixed(2),
+          credits: resolvedPriceDisplay.grsaiCreditTier.credits.toLocaleString(
+            i18n.language.startsWith('zh') ? 'zh-CN' : 'en-US'
+          ),
+        })
+      );
+    }
+    return lines.join('\n');
+  }, [i18n.language, resolvedPriceDisplay, t]);
 
   const supportedAspectRatioValues = useMemo(
     () => selectedModel.aspectRatios.map((item) => item.value),
@@ -313,6 +388,10 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
 
   const resolvedWidth = Math.max(IMAGE_EDIT_NODE_MIN_WIDTH, Math.round(width ?? IMAGE_EDIT_NODE_DEFAULT_WIDTH));
   const resolvedHeight = Math.max(IMAGE_EDIT_NODE_MIN_HEIGHT, Math.round(height ?? IMAGE_EDIT_NODE_DEFAULT_HEIGHT));
+
+  useEffect(() => {
+    updateNodeInternals(id);
+  }, [id, resolvedHeight, resolvedWidth, updateNodeInternals]);
 
   useEffect(() => {
     const externalPrompt = data.prompt ?? '';
@@ -396,6 +475,7 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
     const generationDurationMs = selectedModel.expectedDurationMs ?? 60000;
     const generationStartedAt = Date.now();
     const resultNodeTitle = buildAiResultNodeTitle(prompt, t('node.imageEdit.resultTitle'));
+    const runtimeDiagnostics = await getRuntimeDiagnostics();
     setError(null);
 
     const newNodePosition = findNodePosition(
@@ -437,35 +517,76 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
         }
       }
 
-      const resultUrl = await canvasAiGateway.generateImage({
+      const jobId = await canvasAiGateway.submitGenerateImageJob({
         prompt,
         model: requestResolution.requestModel,
         size: selectedResolution.value,
         aspectRatio: resolvedRequestAspectRatio,
         referenceImages: incomingImages,
-        extraParams: {
-          ...(data.extraParams ?? {}),
-          ...(selectedModel.id === GRSAI_NANO_BANANA_PRO_MODEL_ID
-            ? { grsai_pro_model: grsaiNanoBananaProModel }
-            : {}),
-        },
+        extraParams: effectiveExtraParams,
       });
-
-      const prepared = await prepareNodeImage(resultUrl);
+      const generationDebugContext: GenerationDebugContext = {
+        sourceType: 'imageEdit',
+        providerId: selectedModel.providerId,
+        requestModel: requestResolution.requestModel,
+        requestSize: selectedResolution.value,
+        requestAspectRatio: resolvedRequestAspectRatio,
+        prompt,
+        extraParams: effectiveExtraParams,
+        referenceImageCount: incomingImages.length,
+        referenceImagePlaceholders: createReferenceImagePlaceholders(incomingImages.length),
+        appVersion: runtimeDiagnostics.appVersion,
+        osName: runtimeDiagnostics.osName,
+        osVersion: runtimeDiagnostics.osVersion,
+        osBuild: runtimeDiagnostics.osBuild,
+        userAgent: runtimeDiagnostics.userAgent,
+      };
       updateNodeData(newNodeId, {
-        imageUrl: prepared.imageUrl,
-        previewImageUrl: prepared.previewImageUrl,
-        aspectRatio: prepared.aspectRatio,
-        isGenerating: false,
-        generationStartedAt: null,
+        generationJobId: jobId,
+        generationSourceType: 'imageEdit',
+        generationProviderId: selectedModel.providerId,
+        generationClientSessionId: CURRENT_RUNTIME_SESSION_ID,
+        generationDebugContext,
       });
     } catch (generationError) {
       const resolvedError = resolveErrorContent(generationError, t('ai.error'));
+      const generationDebugContext: GenerationDebugContext = {
+        sourceType: 'imageEdit',
+        providerId: selectedModel.providerId,
+        requestModel: requestResolution.requestModel,
+        requestSize: selectedResolution.value,
+        requestAspectRatio: selectedAspectRatio.value,
+        prompt,
+        extraParams: effectiveExtraParams,
+        referenceImageCount: incomingImages.length,
+        referenceImagePlaceholders: createReferenceImagePlaceholders(incomingImages.length),
+        appVersion: runtimeDiagnostics.appVersion,
+        osName: runtimeDiagnostics.osName,
+        osVersion: runtimeDiagnostics.osVersion,
+        osBuild: runtimeDiagnostics.osBuild,
+        userAgent: runtimeDiagnostics.userAgent,
+      };
+      const reportText = buildGenerationErrorReport({
+        errorMessage: resolvedError.message,
+        errorDetails: resolvedError.details,
+        context: generationDebugContext,
+      });
       setError(resolvedError.message);
-      void showErrorDialog(resolvedError.message, t('common.error'), resolvedError.details);
+      void showErrorDialog(
+        resolvedError.message,
+        t('common.error'),
+        resolvedError.details,
+        reportText
+      );
       updateNodeData(newNodeId, {
         isGenerating: false,
         generationStartedAt: null,
+        generationJobId: null,
+        generationProviderId: null,
+        generationClientSessionId: null,
+        generationError: resolvedError.message,
+        generationErrorDetails: resolvedError.details ?? null,
+        generationDebugContext,
       });
     }
   }, [
@@ -474,8 +595,7 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
     providerApiKey,
     findNodePosition,
     promptDraft,
-    data.extraParams,
-    grsaiNanoBananaProModel,
+    effectiveExtraParams,
     id,
     incomingImages,
     requestResolution.requestModel,
@@ -606,6 +726,14 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
         className={NODE_HEADER_FLOATING_POSITION_CLASS}
         icon={<Sparkles className="h-4 w-4" />}
         titleText={resolvedTitle}
+        rightSlot={
+          resolvedPriceDisplay ? (
+            <NodePriceBadge
+              label={resolvedPriceDisplay.label}
+              title={resolvedPriceTooltip}
+            />
+          ) : undefined
+        }
         editable
         onTitleChange={(nextTitle) => updateNodeData(id, { displayName: nextTitle })}
       />
@@ -660,11 +788,10 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
                     insertImageReference(index);
                   }}
                   onMouseEnter={() => setPickerActiveIndex(index)}
-                  className={`flex w-full items-center gap-2 border border-transparent bg-bg-dark/70 px-2 py-2 text-left text-sm text-text-dark transition-colors hover:border-[rgba(255,255,255,0.18)] ${
-                    pickerActiveIndex === index
+                  className={`flex w-full items-center gap-2 border border-transparent bg-bg-dark/70 px-2 py-2 text-left text-sm text-text-dark transition-colors hover:border-[rgba(255,255,255,0.18)] ${pickerActiveIndex === index
                       ? 'border-[rgba(255,255,255,0.24)] bg-bg-dark'
                       : ''
-                  }`}
+                    }`}
                 >
                   <CanvasNodeImage
                     src={item.displayUrl}
@@ -686,21 +813,29 @@ export const ImageEditNode = memo(({ id, data, selected, width, height }: ImageE
         <ModelParamsControls
           imageModels={imageModels}
           selectedModel={selectedModel}
+          resolutionOptions={resolutionOptions}
           selectedResolution={selectedResolution}
           selectedAspectRatio={selectedAspectRatio}
           aspectRatioOptions={aspectRatioOptions}
           onModelChange={(modelId) => {
             updateNodeData(id, { model: modelId });
           }}
-          onResolutionChange={(resolution) =>
-            {
-              updateNodeData(id, { size: resolution as ImageSize });
-            }
+          onResolutionChange={(resolution) => {
+            updateNodeData(id, { size: resolution as ImageSize });
           }
-          onAspectRatioChange={(aspectRatio) =>
-            {
-              updateNodeData(id, { requestAspectRatio: aspectRatio });
-            }
+          }
+          onAspectRatioChange={(aspectRatio) => {
+            updateNodeData(id, { requestAspectRatio: aspectRatio });
+          }
+          }
+          extraParams={data.extraParams}
+          onExtraParamChange={(key, value) =>
+            updateNodeData(id, {
+              extraParams: {
+                ...(data.extraParams ?? {}),
+                [key]: value,
+              },
+            })
           }
           showWebSearchToggle={showWebSearchToggle}
           webSearchEnabled={webSearchEnabled}

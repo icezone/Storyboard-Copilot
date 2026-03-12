@@ -1,4 +1,10 @@
-export type SettingsCategory = 'providers' | 'appearance' | 'general' | 'experimental' | 'about';
+export type SettingsCategory =
+  | 'providers'
+  | 'pricing'
+  | 'appearance'
+  | 'general'
+  | 'experimental'
+  | 'about';
 
 interface OpenSettingsEventDetail {
   category?: SettingsCategory;

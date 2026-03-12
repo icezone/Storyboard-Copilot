@@ -7,7 +7,13 @@ import {
   useRef,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { Handle, Position, useViewport, type NodeProps } from '@xyflow/react';
+import {
+  Handle,
+  Position,
+  useUpdateNodeInternals,
+  useViewport,
+  type NodeProps,
+} from '@xyflow/react';
 import { Download, FolderOpen, ImagePlus, SlidersHorizontal, SquareArrowOutUpRight } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { openPath, revealItemInDir } from '@tauri-apps/plugin-opener';
@@ -413,6 +419,7 @@ const FrameCard = memo(
 FrameCard.displayName = 'FrameCard';
 
 export const StoryboardNode = memo(({ id, data, selected, width, height }: StoryboardNodeProps) => {
+  const updateNodeInternals = useUpdateNodeInternals();
   const rootRef = useRef<HTMLDivElement>(null);
   const pickerMenuRef = useRef<HTMLDivElement>(null);
   const exportSettingsTriggerRef = useRef<HTMLDivElement>(null);
@@ -467,6 +474,11 @@ export const StoryboardNode = memo(({ id, data, selected, width, height }: Story
     STORYBOARD_NODE_MIN_HEIGHT_PX,
     Math.round(height ?? STORYBOARD_NODE_MIN_HEIGHT_PX)
   );
+
+  useEffect(() => {
+    updateNodeInternals(id);
+  }, [id, resolvedNodeHeight, resolvedNodeWidth, updateNodeInternals]);
+
   const resolvedTitle = useMemo(
     () => resolveNodeDisplayName(CANVAS_NODE_TYPES.storyboardSplit, data),
     [data]

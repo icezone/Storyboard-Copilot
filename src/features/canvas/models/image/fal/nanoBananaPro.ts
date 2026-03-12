@@ -1,4 +1,5 @@
 import type { ImageModelDefinition } from '../../types';
+import { createMultiplierPricing } from '@/features/canvas/pricing';
 
 export const FAL_NANO_BANANA_PRO_MODEL_ID = 'fal/nano-banana-pro';
 
@@ -32,6 +33,17 @@ export const imageModel: ImageModelDefinition = {
     { value: '2K', label: '2K' },
     { value: '4K', label: '4K' },
   ],
+  pricing: createMultiplierPricing({
+    currency: 'USD',
+    baseAmount: 0.15,
+    resolutionMultipliers: {
+      '0.5K': 1,
+      '1K': 1,
+      '2K': 1,
+      '4K': 2,
+    },
+    resolveExtraCharges: ({ extraParams }) => (extraParams?.enable_web_search === true ? 0.015 : 0),
+  }),
   resolveRequest: ({ referenceImageCount }) => ({
     requestModel: FAL_NANO_BANANA_PRO_MODEL_ID,
     modeLabel: referenceImageCount > 0 ? '编辑模式' : '生成模式',

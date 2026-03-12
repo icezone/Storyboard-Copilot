@@ -58,6 +58,8 @@
     "reupload": "Reupload",
     "copy": "Copy",
     "copyText": "Copy Text",
+    "copyErrorReport": "Copy Error",
+    "copied": "Copied",
     "download": "Download",
     "ungroup": "Ungroup",
     "saveAs": "Save as...",
@@ -73,7 +75,14 @@
     "autoAspectRatio": "Auto",
     "quality": "Quality",
     "aspectRatio": "Aspect Ratio",
-    "enableWebSearch": "Enable web search"
+    "enableWebSearch": "Enable web search",
+    "otherParams": "Other Params",
+    "extraOptions": "Extra options",
+    "thinkingLevel": "Thinking level",
+    "thinkingLevelDesc": "Only applies to fal Nano Banana 2. High thinking adds extra cost.",
+    "thinkingDisabled": "Off",
+    "thinkingMinimal": "Standard",
+    "thinkingHigh": "High"
   },
   "node": {
     "menu": {
@@ -96,7 +105,8 @@
       "generatedAlt": "Generated image",
       "waitingResult": "Waiting for output image",
       "waitingResultDelayed": "Already waited {{minutes}} minutes with no result yet. Still waiting...",
-      "selectToEdit": "Select this node and enter a prompt below to generate or edit image"
+      "selectToEdit": "Select this node and enter a prompt below to generate or edit image",
+      "generationFailed": "Generation failed"
     },
     "imageEdit": {
       "promptRequired": "Please enter a prompt",
@@ -183,6 +193,8 @@
     "title": "Settings",
     "providers": "API Key",
     "providersDesc": "Configure AI provider API keys",
+    "pricing": "Pricing",
+    "pricingDesc": "Manage node price display, exchange rate conversion, and credit-pack estimates.",
     "providerGuideText": "Different providers vary in model capability, queue speed, stability, and pricing. Switch providers based on your task, and follow each provider's recommended parameters.",
     "doNotShowAgain": "Do not show again",
     "appearance": "Appearance",
@@ -237,6 +249,8 @@
     "providerRegisterLink": "click here to sign up",
     "providerApiKeyGuideMiddle": ", then",
     "getApiKeyLink": "click here to get API key",
+    "missingAnyApiKeyMessage": "You have not configured any API keys yet. Please open Settings to configure one.",
+    "openProvidersSettings": "Open Settings",
     "aboutAppName": "Storyboard Copilot",
     "aboutIntro": "An AI storyboard workstation based on a node canvas for generation, editing, and storyboard workflows.",
     "aboutVersionLabel": "Version",
@@ -254,11 +268,31 @@
     "showStoryboardGenAdvancedRatioControlsDesc": "When enabled, show cell/overall ratio info and the Overall/Cell mode switch. When disabled, storyboard generation uses cell-ratio mode by default.",
     "storyboardGenAutoInferEmptyFrame": "Auto infer empty frames",
     "storyboardGenAutoInferEmptyFrameDesc": "When enabled, empty storyboard cells automatically append \"依据之前的内容进行推测\" during generation prompt construction.",
+    "showNodePrice": "Show node price in the header",
+    "showNodePriceDesc": "Continuously estimate the current run cost from the selected model, resolution, and extra options.",
+    "priceDisplayCurrencyMode": "Display currency",
+    "priceDisplayCurrencyModeDesc": "In auto mode, Chinese uses CNY and English uses USD.",
+    "priceCurrencyAuto": "Follow language",
+    "priceCurrencyCny": "CNY",
+    "priceCurrencyUsd": "USD",
+    "usdToCnyRate": "USD to CNY rate",
+    "usdToCnyRateDesc": "Used only for price display conversion between USD and CNY. It does not change actual provider billing.",
+    "preferDiscountedPrice": "Prefer discounted price",
+    "preferDiscountedPriceDesc": "Currently this only applies to KIE. The discounted domestic pricing usually needs to be requested from KIE separately; when enabled, estimates prefer that discounted rate.",
+    "grsaiCreditTier": "GRSAI credit pack",
+    "grsaiCreditTierDesc": "GRSAI bills in credits, so the per-run estimate changes with your top-up pack.",
+    "grsaiCreditTierOption": "CNY {{price}} / {{credits}} credits",
     "checkUpdateNow": "Check for updates now",
     "checkingUpdate": "Checking for updates...",
     "checkUpdateHasUpdate": "New version detected.",
     "checkUpdateUpToDate": "You are on the latest version.",
     "checkUpdateFailed": "Update check failed. Please try again later."
+  },
+  "pricing": {
+    "nativePrice": "Native: {{value}}",
+    "originalPrice": "Original: {{value}}",
+    "pointsCost": "Credits: {{count}}",
+    "grsaiTier": "Pack: CNY {{price}} / {{credits}} credits"
   },
   "update": {
     "dialogTitle": "Update Available",
@@ -273,7 +307,8 @@
     "applyIgnore": "Apply ignore"
   },
   "errorDialog": {
-    "detailsTitle": "Error details"
+    "detailsTitle": "Error details",
+    "copyReport": "Copy error report"
   }
 }
 

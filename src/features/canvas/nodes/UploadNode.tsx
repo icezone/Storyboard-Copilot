@@ -9,7 +9,13 @@ import {
   type DragEvent,
   type SyntheticEvent,
 } from 'react';
-import { Handle, Position, useViewport, type NodeProps } from '@xyflow/react';
+import {
+  Handle,
+  Position,
+  useUpdateNodeInternals,
+  useViewport,
+  type NodeProps,
+} from '@xyflow/react';
 import { Upload } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -66,6 +72,7 @@ function resolveDroppedImageFile(event: DragEvent<HTMLElement>): File | null {
 
 export const UploadNode = memo(({ id, data, selected, width, height }: UploadNodeProps) => {
   const { t } = useTranslation();
+  const updateNodeInternals = useUpdateNodeInternals();
   const setSelectedNode = useCanvasStore((state) => state.setSelectedNode);
   const updateNodeData = useCanvasStore((state) => state.updateNodeData);
   const useUploadFilenameAsNodeTitle = useSettingsStore((state) => state.useUploadFilenameAsNodeTitle);
@@ -291,6 +298,10 @@ export const UploadNode = memo(({ id, data, selected, width, height }: UploadNod
       : data.previewImageUrl || data.imageUrl;
     return picked ? resolveImageDisplayUrl(picked) : null;
   }, [data.imageUrl, data.previewImageUrl, transientPreviewUrl, zoom]);
+
+  useEffect(() => {
+    updateNodeInternals(id);
+  }, [id, resolvedHeight, resolvedWidth, updateNodeInternals]);
 
   return (
     <div

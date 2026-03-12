@@ -1,14 +1,27 @@
 import {
+  Children,
   forwardRef,
+  isValidElement,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
   type ButtonHTMLAttributes,
+  type ChangeEvent,
   type HTMLAttributes,
   type InputHTMLAttributes,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, ChevronDown, X } from 'lucide-react';
-import { UI_CONTENT_OVERLAY_INSET_CLASS, UI_DIALOG_TRANSITION_MS } from './motion';
+import {
+  UI_CONTENT_OVERLAY_INSET_CLASS,
+  UI_DIALOG_TRANSITION_MS,
+  UI_POPOVER_TRANSITION_MS,
+} from './motion';
 import { useDialogTransition } from './useDialogTransition';
 
 type ButtonVariant = 'primary' | 'muted' | 'ghost';
@@ -34,6 +47,12 @@ interface UiCheckboxProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 
 }
 
 interface UiSelectProps extends SelectHTMLAttributes<HTMLSelectElement> {}
+
+interface UiSelectOption {
+  value: string;
+  label: ReactNode;
+  disabled: boolean;
+}
 
 interface UiModalProps {
   isOpen: boolean;
@@ -166,15 +185,275 @@ export const UiCheckbox = forwardRef<HTMLButtonElement, UiCheckboxProps>(
 UiCheckbox.displayName = 'UiCheckbox';
 
 export function UiSelect({ className = '', children, ...props }: UiSelectProps) {
+  const {
+    value,
+    defaultValue,
+    onChange,
+    onBlur,
+    onFocus,
+    disabled,
+    name,
+    'aria-label': ariaLabel,
+    ...selectProps
+  } = props;
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const hiddenSelectRef = useRef<HTMLSelectElement | null>(null);
+  const listboxIdRef = useRef(`ui-select-${Math.random().toString(36).slice(2, 10)}`);
+  const [isOpen, setIsOpen] = useState(false);
+  const [menuStyle, setMenuStyle] = useState<{ left: number; top: number; width: number }>({
+    left: 0,
+    top: 0,
+    width: 0,
+  });
+  const { shouldRender: shouldRenderMenu, isVisible: isMenuVisible } = useDialogTransition(
+    isOpen,
+    UI_POPOVER_TRANSITION_MS
+  );
+  const parsedOptions = useMemo<UiSelectOption[]>(() => {
+    return Children.toArray(children).flatMap((child) => {
+      if (!isValidElement(child) || child.type !== 'option') {
+        return [];
+      }
+
+      const optionValue = child.props.value ?? child.props.children;
+      return [
+        {
+          value: String(optionValue ?? ''),
+          label: child.props.children,
+          disabled: Boolean(child.props.disabled),
+        },
+      ];
+    });
+  }, [children]);
+  const initialValue = useMemo(() => {
+    if (value != null) {
+      return String(value);
+    }
+
+    if (defaultValue != null) {
+      return String(defaultValue);
+    }
+
+    return parsedOptions.find((option) => !option.disabled)?.value ?? '';
+  }, [defaultValue, parsedOptions, value]);
+  const [uncontrolledValue, setUncontrolledValue] = useState(initialValue);
+  const isControlled = value != null;
+  const selectedValue = isControlled ? String(value) : uncontrolledValue;
+  const selectedOption =
+    parsedOptions.find((option) => option.value === selectedValue) ??
+    parsedOptions.find((option) => !option.disabled) ??
+    null;
+
+  useEffect(() => {
+    if (!isControlled) {
+      setUncontrolledValue(initialValue);
+    }
+  }, [initialValue, isControlled]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const updatePosition = () => {
+      const trigger = triggerRef.current;
+      if (!trigger) {
+        return;
+      }
+
+      const rect = trigger.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const estimatedMenuHeight = Math.min(Math.max(parsedOptions.length * 38 + 12, 60), 240);
+      const openAbove = rect.bottom + 8 + estimatedMenuHeight > viewportHeight && rect.top > estimatedMenuHeight;
+      setMenuStyle({
+        left: rect.left,
+        top: openAbove ? Math.max(8, rect.top - estimatedMenuHeight - 8) : rect.bottom + 8,
+        width: rect.width,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [isOpen, parsedOptions.length]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (triggerRef.current?.contains(target ?? null)) {
+        return;
+      }
+
+      const menuElement = document.getElementById(listboxIdRef.current);
+      if (menuElement?.contains(target ?? null)) {
+        return;
+      }
+
+      setIsOpen(false);
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [isOpen]);
+
+  const commitValue = (nextValue: string) => {
+    if (!isControlled) {
+      setUncontrolledValue(nextValue);
+    }
+
+    if (hiddenSelectRef.current) {
+      hiddenSelectRef.current.value = nextValue;
+    }
+
+    onChange?.({
+      target: { value: nextValue, name },
+      currentTarget: { value: nextValue, name },
+    } as ChangeEvent<HTMLSelectElement>);
+  };
+
+  const handleTriggerKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (disabled || parsedOptions.length === 0) {
+      return;
+    }
+
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      setIsOpen((current) => !current);
+      return;
+    }
+
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const enabledOptions = parsedOptions.filter((option) => !option.disabled);
+      if (enabledOptions.length === 0) {
+        return;
+      }
+
+      const currentIndex = enabledOptions.findIndex((option) => option.value === selectedValue);
+      const fallbackIndex = event.key === 'ArrowDown' ? 0 : enabledOptions.length - 1;
+      const nextIndex =
+        currentIndex === -1
+          ? fallbackIndex
+          : (currentIndex + (event.key === 'ArrowDown' ? 1 : -1) + enabledOptions.length) %
+            enabledOptions.length;
+      commitValue(enabledOptions[nextIndex].value);
+      setIsOpen(false);
+    }
+  };
+
   return (
     <div className="relative">
       <select
-        className={`h-8 w-full appearance-none rounded-lg border border-[rgba(255,255,255,0.14)] bg-bg-dark/70 px-2 pr-7 text-xs text-text-dark outline-none transition-colors focus:border-accent ${className}`}
-        {...props}
+        ref={hiddenSelectRef}
+        tabIndex={-1}
+        aria-hidden="true"
+        value={selectedValue}
+        name={name}
+        disabled={disabled}
+        className="pointer-events-none absolute inset-0 opacity-0"
+        onChange={() => undefined}
+        {...selectProps}
       >
         {children}
       </select>
-      <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-muted" />
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label={ariaLabel}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        aria-controls={listboxIdRef.current}
+        disabled={disabled}
+        className={`group inline-flex h-8 w-full items-center justify-between rounded-[6px] border border-[color:var(--ui-border-soft)] bg-[var(--ui-surface-field)] px-3 text-left text-xs font-medium text-text-dark outline-none transition-[border-color,background-color,box-shadow,color] hover:border-[color:var(--ui-border-strong)] focus-visible:border-accent focus-visible:shadow-[0_0_0_2px_rgba(var(--accent-rgb),0.12)] disabled:cursor-not-allowed disabled:opacity-55 ${className}`}
+        onClick={() => {
+          if (!disabled && parsedOptions.length > 0) {
+            setIsOpen((current) => !current);
+          }
+        }}
+        onKeyDown={handleTriggerKeyDown}
+        onBlur={(event) => onBlur?.(event as never)}
+        onFocus={(event) => onFocus?.(event as never)}
+      >
+        <span className="min-w-0 truncate pr-3">{selectedOption?.label ?? ''}</span>
+        <span className="flex h-4 w-4 shrink-0 items-center justify-center text-text-muted transition-colors group-hover:text-text-dark group-focus-visible:text-accent">
+          <ChevronDown
+            className={`h-3.5 w-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+            style={{ transitionDuration: `${UI_POPOVER_TRANSITION_MS}ms` }}
+          />
+        </span>
+      </button>
+      {shouldRenderMenu && typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              id={listboxIdRef.current}
+              role="listbox"
+              aria-label={ariaLabel}
+              className={`fixed z-[140] overflow-hidden rounded-[6px] border border-[color:var(--ui-border-soft)] bg-[var(--ui-surface-panel)] p-1 shadow-[var(--ui-shadow-panel)] transition-[opacity,transform] ease-out ${
+                isMenuVisible ? 'opacity-100 translate-y-0' : 'pointer-events-none opacity-0 -translate-y-1'
+              }`}
+              style={{
+                left: menuStyle.left,
+                top: menuStyle.top,
+                width: menuStyle.width,
+                maxHeight: 240,
+                transitionDuration: `${UI_POPOVER_TRANSITION_MS}ms`,
+              }}
+            >
+              <div className="ui-scrollbar max-h-[228px] overflow-y-auto">
+                {parsedOptions.map((option) => {
+                  const isSelected = option.value === selectedValue;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="option"
+                      aria-selected={isSelected}
+                      disabled={option.disabled}
+                      className={`flex w-full items-center justify-between rounded-[4px] px-3 py-2 text-sm transition-colors ${
+                        option.disabled
+                          ? 'cursor-not-allowed opacity-40'
+                          : isSelected
+                            ? 'bg-accent text-white'
+                            : 'text-text-dark hover:bg-[rgba(255,255,255,0.08)] dark:hover:bg-white/[0.06]'
+                      }`}
+                      onClick={() => {
+                        if (option.disabled) {
+                          return;
+                        }
+                        commitValue(option.value);
+                        setIsOpen(false);
+                        triggerRef.current?.focus();
+                      }}
+                    >
+                      <span className="truncate">{option.label}</span>
+                      {isSelected ? <Check className="ml-3 h-3.5 w-3.5 shrink-0 text-white" /> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }

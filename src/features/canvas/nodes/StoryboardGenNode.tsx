@@ -12,7 +12,6 @@ import {
 import { Handle, Position, useUpdateNodeInternals, useViewport } from '@xyflow/react';
 import { Minus, Plus, Sparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { embedStoryboardImageMetadata } from '@/commands/image';
 
 import {
   AUTO_REQUEST_ASPECT_RATIO,
@@ -34,10 +33,16 @@ import {
 import { resolveErrorContent, showErrorDialog } from '@/features/canvas/application/errorDialog';
 import {
   detectAspectRatio,
-  prepareNodeImage,
   parseAspectRatio,
   resolveImageDisplayUrl,
 } from '@/features/canvas/application/imageData';
+import {
+  buildGenerationErrorReport,
+  CURRENT_RUNTIME_SESSION_ID,
+  createReferenceImagePlaceholders,
+  getRuntimeDiagnostics,
+  type GenerationDebugContext,
+} from '@/features/canvas/application/generationErrorReport';
 import {
   sanitizeStoryboardPromptText,
   sanitizeStoryboardText,
@@ -52,16 +57,20 @@ import {
   DEFAULT_IMAGE_MODEL_ID,
   getImageModel,
   listImageModels,
+  resolveImageModelResolution,
+  resolveImageModelResolutions,
 } from '@/features/canvas/models';
 import { GRSAI_NANO_BANANA_PRO_MODEL_ID } from '@/features/canvas/models/image/grsai/nanoBananaPro';
 import { FAL_NANO_BANANA_2_MODEL_ID } from '@/features/canvas/models/image/fal/nanoBanana2';
 import { KIE_NANO_BANANA_2_MODEL_ID } from '@/features/canvas/models/image/kie/nanoBanana2';
+import { resolveModelPriceDisplay } from '@/features/canvas/pricing';
 import { ModelParamsControls } from '@/features/canvas/ui/ModelParamsControls';
 import { CanvasNodeImage } from '@/features/canvas/ui/CanvasNodeImage';
 import {
   UiButton,
 } from '@/components/ui';
 import { NodeHeader, NODE_HEADER_FLOATING_POSITION_CLASS } from '@/features/canvas/ui/NodeHeader';
+import { NodePriceBadge } from '@/features/canvas/ui/NodePriceBadge';
 import { NodeResizeHandle } from '@/features/canvas/ui/NodeResizeHandle';
 import {
   NODE_CONTROL_CHIP_CLASS,
@@ -101,7 +110,7 @@ const STORYBOARD_GRID_BASE_CELL_HEIGHT_PX = 78;
 const STORYBOARD_GRID_MAX_WIDTH_PX = 320;
 const STORYBOARD_CONTROL_ROW_WIDTH_PX = 274;
 const STORYBOARD_PARAMS_ROW_WIDTH_PX = 286;
-const STORYBOARD_GEN_NODE_MIN_WIDTH_PX = 520;
+const STORYBOARD_GEN_NODE_MIN_WIDTH_PX = 200;
 const STORYBOARD_GEN_NODE_MIN_HEIGHT_PX = 320;
 const STORYBOARD_GEN_HEADER_ADJUST = { x: 0, y: 0, scale: 1 };
 const STORYBOARD_GEN_ICON_ADJUST = { x: 0, y: 0, scale: 0.95 };
@@ -530,7 +539,7 @@ function generateGridImageDataUrl(
 }
 
 export const StoryboardGenNode = memo(({ id, data, selected, width, height }: StoryboardGenNodeProps) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { zoom } = useViewport();
   const updateNodeInternals = useUpdateNodeInternals();
   const setSelectedNode = useCanvasStore((state) => state.setSelectedNode);
@@ -560,6 +569,11 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
   const showStoryboardGenAdvancedRatioControls = useSettingsStore(
     (state) => state.showStoryboardGenAdvancedRatioControls
   );
+  const showNodePrice = useSettingsStore((state) => state.showNodePrice);
+  const priceDisplayCurrencyMode = useSettingsStore((state) => state.priceDisplayCurrencyMode);
+  const usdToCnyRate = useSettingsStore((state) => state.usdToCnyRate);
+  const preferDiscountedPrice = useSettingsStore((state) => state.preferDiscountedPrice);
+  const grsaiCreditTierId = useSettingsStore((state) => state.grsaiCreditTierId);
 
   const [error, setError] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -608,12 +622,25 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
     return getImageModel(modelId);
   }, [nodeData.model]);
   const providerApiKey = apiKeys[selectedModel.providerId] ?? '';
+  const effectiveExtraParams = useMemo(
+    () => ({
+      ...(nodeData.extraParams ?? {}),
+      ...(selectedModel.id === GRSAI_NANO_BANANA_PRO_MODEL_ID
+        ? { grsai_pro_model: grsaiNanoBananaProModel }
+        : {}),
+    }),
+    [grsaiNanoBananaProModel, nodeData.extraParams, selectedModel.id]
+  );
+  const resolutionOptions = useMemo(
+    () => resolveImageModelResolutions(selectedModel, { extraParams: effectiveExtraParams }),
+    [effectiveExtraParams, selectedModel]
+  );
 
   const selectedResolution = useMemo((): AspectRatioChoice => {
-    const nodeSize = nodeData.size;
-    const found = nodeSize ? selectedModel.resolutions.find((item) => item.value === nodeSize) : undefined;
-    return found ?? selectedModel.resolutions.find((item) => item.value === selectedModel.defaultResolution) ?? selectedModel.resolutions[0];
-  }, [nodeData.size, selectedModel]);
+    return resolveImageModelResolution(selectedModel, nodeData.size, {
+      extraParams: effectiveExtraParams,
+    });
+  }, [effectiveExtraParams, nodeData.size, selectedModel]);
 
   const aspectRatioOptions = useMemo<AspectRatioChoice[]>(
     () => [AUTO_ASPECT_RATIO_OPTION, ...selectedModel.aspectRatios],
@@ -676,12 +703,12 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
     const nodeHeight = Math.max(
       STORYBOARD_GEN_NODE_MIN_HEIGHT_PX,
       Math.round(
-      NODE_VERTICAL_PADDING_PX +
-      CONTROL_ROW_HEIGHT_PX +
-      CONTROL_ROW_MARGIN_BOTTOM_PX +
-      roundedGridHeight +
-      FRAME_GRID_MARGIN_BOTTOM_PX +
-      PARAM_ROW_HEIGHT_PX
+        NODE_VERTICAL_PADDING_PX +
+        CONTROL_ROW_HEIGHT_PX +
+        CONTROL_ROW_MARGIN_BOTTOM_PX +
+        roundedGridHeight +
+        FRAME_GRID_MARGIN_BOTTOM_PX +
+        PARAM_ROW_HEIGHT_PX
       )
     );
 
@@ -698,6 +725,60 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
     selectedModel.id === FAL_NANO_BANANA_2_MODEL_ID ||
     selectedModel.id === KIE_NANO_BANANA_2_MODEL_ID;
   const webSearchEnabled = Boolean(nodeData.extraParams?.enable_web_search);
+  const resolvedPriceDisplay = useMemo(
+    () =>
+      showNodePrice
+        ? resolveModelPriceDisplay(selectedModel, {
+          resolution: selectedResolution.value,
+          extraParams: effectiveExtraParams,
+          language: i18n.language,
+          settings: {
+            displayCurrencyMode: priceDisplayCurrencyMode,
+            usdToCnyRate,
+            preferDiscountedPrice,
+            grsaiCreditTierId,
+          },
+        })
+        : null,
+    [
+      grsaiCreditTierId,
+      i18n.language,
+      preferDiscountedPrice,
+      priceDisplayCurrencyMode,
+      effectiveExtraParams,
+      selectedModel,
+      selectedResolution.value,
+      showNodePrice,
+      usdToCnyRate,
+    ]
+  );
+  const resolvedPriceTooltip = useMemo(() => {
+    if (!resolvedPriceDisplay) {
+      return undefined;
+    }
+
+    const lines = [resolvedPriceDisplay.label];
+    if (resolvedPriceDisplay.nativeLabel) {
+      lines.push(t('pricing.nativePrice', { value: resolvedPriceDisplay.nativeLabel }));
+    }
+    if (resolvedPriceDisplay.originalLabel) {
+      lines.push(t('pricing.originalPrice', { value: resolvedPriceDisplay.originalLabel }));
+    }
+    if (resolvedPriceDisplay.pointsCost) {
+      lines.push(t('pricing.pointsCost', { count: resolvedPriceDisplay.pointsCost }));
+    }
+    if (resolvedPriceDisplay.grsaiCreditTier) {
+      lines.push(
+        t('pricing.grsaiTier', {
+          price: resolvedPriceDisplay.grsaiCreditTier.priceCny.toFixed(2),
+          credits: resolvedPriceDisplay.grsaiCreditTier.credits.toLocaleString(
+            i18n.language.startsWith('zh') ? 'zh-CN' : 'en-US'
+          ),
+        })
+      );
+    }
+    return lines.join('\n');
+  }, [i18n.language, resolvedPriceDisplay, t]);
 
   const supportedAspectRatioValues = useMemo(
     () => selectedModel.aspectRatios.map((item) => item.value),
@@ -986,6 +1067,7 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
 
     const generationDurationMs = selectedModel.expectedDurationMs ?? 60000;
     const generationStartedAt = Date.now();
+    const runtimeDiagnostics = await getRuntimeDiagnostics();
 
     // Create new image node with generating state immediately
     // Use auto-positioning to avoid collisions with existing nodes
@@ -1030,55 +1112,85 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
       // 将网格图片作为最后一张参考图片
       const allReferenceImages = [...incomingImages, gridImageDataUrl];
 
-      const resultUrl = await canvasAiGateway.generateImage({
-        prompt,
-        model: requestResolution.requestModel,
-        size: selectedResolution.value,
-        aspectRatio: resolvedRequestAspectRatio,
-        referenceImages: allReferenceImages,
-        extraParams: {
-          ...(nodeData.extraParams ?? {}),
-          ...(selectedModel.id === GRSAI_NANO_BANANA_PRO_MODEL_ID
-            ? { grsai_pro_model: grsaiNanoBananaProModel }
-            : {}),
-        },
-      });
-
-      const prepared = await prepareNodeImage(resultUrl);
       const metadataFrameNotes = nodeData.frames
         .slice(0, safeRows * safeCols)
         .map((frame) => {
           const description = frameDescriptionDraftsRef.current[frame.id] ?? frame.description;
           return sanitizeStoryboardText(description, ignoreAtTagWhenCopyingAndGenerating);
         });
-      const imageWithMetadata = await embedStoryboardImageMetadata(prepared.imageUrl, {
-        gridRows: safeRows,
-        gridCols: safeCols,
-        frameNotes: metadataFrameNotes,
-      }).catch((error) => {
-        console.warn('[StoryboardMetadata] embed failed on generation output', error);
-        return prepared.imageUrl;
-      });
-      const previewWithMetadata = prepared.previewImageUrl === prepared.imageUrl
-        ? imageWithMetadata
-        : prepared.previewImageUrl;
 
-      // Update the new image node with generated result
+      const jobId = await canvasAiGateway.submitGenerateImageJob({
+        prompt,
+        model: requestResolution.requestModel,
+        size: selectedResolution.value,
+        aspectRatio: resolvedRequestAspectRatio,
+        referenceImages: allReferenceImages,
+        extraParams: effectiveExtraParams,
+      });
+      const generationDebugContext: GenerationDebugContext = {
+        sourceType: 'storyboardGen',
+        providerId: selectedModel.providerId,
+        requestModel: requestResolution.requestModel,
+        requestSize: selectedResolution.value,
+        requestAspectRatio: resolvedRequestAspectRatio,
+        prompt,
+        extraParams: effectiveExtraParams,
+        referenceImageCount: allReferenceImages.length,
+        referenceImagePlaceholders: createReferenceImagePlaceholders(allReferenceImages.length),
+        appVersion: runtimeDiagnostics.appVersion,
+        osName: runtimeDiagnostics.osName,
+        osVersion: runtimeDiagnostics.osVersion,
+        osBuild: runtimeDiagnostics.osBuild,
+        userAgent: runtimeDiagnostics.userAgent,
+      };
       updateNodeData(newNodeId, {
-        imageUrl: imageWithMetadata,
-        previewImageUrl: previewWithMetadata,
-        aspectRatio: prepared.aspectRatio,
-        isGenerating: false,
-        generationStartedAt: null,
+        generationJobId: jobId,
+        generationSourceType: 'storyboardGen',
+        generationProviderId: selectedModel.providerId,
+        generationClientSessionId: CURRENT_RUNTIME_SESSION_ID,
+        generationDebugContext,
+        generationStoryboardMetadata: {
+          gridRows: safeRows,
+          gridCols: safeCols,
+          frameNotes: metadataFrameNotes,
+        },
       });
     } catch (generationError) {
       const resolvedError = resolveErrorContent(generationError, '生成失败');
+      const generationDebugContext: GenerationDebugContext = {
+        sourceType: 'storyboardGen',
+        providerId: selectedModel.providerId,
+        requestModel: requestResolution.requestModel,
+        requestSize: selectedResolution.value,
+        requestAspectRatio: resolvedRequestAspectRatio,
+        prompt,
+        extraParams: effectiveExtraParams,
+        referenceImageCount: incomingImages.length + 1,
+        referenceImagePlaceholders: createReferenceImagePlaceholders(incomingImages.length + 1),
+        appVersion: runtimeDiagnostics.appVersion,
+        osName: runtimeDiagnostics.osName,
+        osVersion: runtimeDiagnostics.osVersion,
+        osBuild: runtimeDiagnostics.osBuild,
+        userAgent: runtimeDiagnostics.userAgent,
+      };
+      const reportText = buildGenerationErrorReport({
+        errorMessage: resolvedError.message,
+        errorDetails: resolvedError.details,
+        context: generationDebugContext,
+      });
       setError(resolvedError.message);
-      void showErrorDialog(resolvedError.message, '错误', resolvedError.details);
+      void showErrorDialog(resolvedError.message, '错误', resolvedError.details, reportText);
       // Clear generating state and mark as failed
       updateNodeData(newNodeId, {
         isGenerating: false,
         generationStartedAt: null,
+        generationJobId: null,
+        generationProviderId: null,
+        generationClientSessionId: null,
+        generationStoryboardMetadata: undefined,
+        generationError: resolvedError.message,
+        generationErrorDetails: resolvedError.details ?? null,
+        generationDebugContext,
       });
     }
   }, [
@@ -1086,8 +1198,7 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
     nodeData,
     incomingImages,
     requestResolution.requestModel,
-    nodeData.extraParams,
-    grsaiNanoBananaProModel,
+    effectiveExtraParams,
     selectedModel.expectedDurationMs,
     selectedModel.id,
     selectedModel.providerId,
@@ -1321,6 +1432,14 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
         headerAdjust={STORYBOARD_GEN_HEADER_ADJUST}
         iconAdjust={STORYBOARD_GEN_ICON_ADJUST}
         titleAdjust={STORYBOARD_GEN_TITLE_ADJUST}
+        rightSlot={
+          resolvedPriceDisplay ? (
+            <NodePriceBadge
+              label={resolvedPriceDisplay.label}
+              title={resolvedPriceTooltip}
+            />
+          ) : undefined
+        }
         editable
         onTitleChange={(nextTitle) => updateNodeData(id, { displayName: nextTitle })}
       />
@@ -1399,52 +1518,52 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
           {nodeData.frames.map((frame, index) => {
             const frameDescription = frameDescriptionDrafts[frame.id] ?? frame.description;
             return (
-            <div
-              key={frame.id}
-              className="relative overflow-hidden rounded border border-[rgba(255,255,255,0.06)] bg-bg-dark/40"
-              style={{ aspectRatio: frameLayout.cellAspectRatio }}
-            >
               <div
-                ref={(element) => {
-                  frameHighlightRefs.current[frame.id] = element;
-                }}
-                aria-hidden="true"
-                className="ui-scrollbar pointer-events-none absolute inset-0 overflow-y-auto overflow-x-hidden text-[10px] leading-4 text-text-dark"
-                style={{ scrollbarGutter: 'stable' }}
+                key={frame.id}
+                className="relative overflow-hidden rounded border border-[rgba(255,255,255,0.06)] bg-bg-dark/40"
+                style={{ aspectRatio: frameLayout.cellAspectRatio }}
               >
-                <div className="min-h-full whitespace-pre-wrap break-words px-1.5 py-1 text-left">
-                  {renderFrameDescriptionWithHighlights(frameDescription, incomingImages.length)}
+                <div
+                  ref={(element) => {
+                    frameHighlightRefs.current[frame.id] = element;
+                  }}
+                  aria-hidden="true"
+                  className="ui-scrollbar pointer-events-none absolute inset-0 overflow-y-auto overflow-x-hidden text-[10px] leading-4 text-text-dark"
+                  style={{ scrollbarGutter: 'stable' }}
+                >
+                  <div className="min-h-full whitespace-pre-wrap break-words px-1.5 py-1 text-left">
+                    {renderFrameDescriptionWithHighlights(frameDescription, incomingImages.length)}
+                  </div>
                 </div>
+                <textarea
+                  ref={(element) => {
+                    frameTextareaRefs.current[frame.id] = element;
+                  }}
+                  value={frameDescription}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    handleFrameDescriptionChange(index, nextValue);
+                  }}
+                  onKeyDown={(event) => handleFrameDescriptionKeyDown(index, event)}
+                  onScroll={() => syncFrameHighlightScroll(frame.id)}
+                  onPointerDown={(event) => {
+                    lastPointerAnchorRef.current = {
+                      frameIndex: index,
+                      anchor: resolvePointerAnchor(rootRef.current, event.clientX, event.clientY, zoom),
+                    };
+                  }}
+                  onFocus={(event) => {
+                    activeFrameTextareaRef.current = event.currentTarget;
+                    syncFrameHighlightScroll(frame.id);
+                  }}
+                  placeholder={t('node.storyboardGen.framePlaceholder', {
+                    index: String(index + 1).padStart(2, '0'),
+                  })}
+                  wrap="soft"
+                  className="ui-scrollbar nodrag nowheel relative z-10 h-full w-full resize-none overflow-y-auto overflow-x-hidden bg-transparent px-1.5 py-1 text-left text-[10px] leading-4 text-transparent caret-text-dark placeholder:text-text-muted/40 focus:border-accent/50 focus:outline-none whitespace-pre-wrap break-words"
+                  style={{ scrollbarGutter: 'stable' }}
+                />
               </div>
-              <textarea
-                ref={(element) => {
-                  frameTextareaRefs.current[frame.id] = element;
-                }}
-                value={frameDescription}
-                onChange={(event) => {
-                  const nextValue = event.target.value;
-                  handleFrameDescriptionChange(index, nextValue);
-                }}
-                onKeyDown={(event) => handleFrameDescriptionKeyDown(index, event)}
-                onScroll={() => syncFrameHighlightScroll(frame.id)}
-                onPointerDown={(event) => {
-                  lastPointerAnchorRef.current = {
-                    frameIndex: index,
-                    anchor: resolvePointerAnchor(rootRef.current, event.clientX, event.clientY, zoom),
-                  };
-                }}
-                onFocus={(event) => {
-                  activeFrameTextareaRef.current = event.currentTarget;
-                  syncFrameHighlightScroll(frame.id);
-                }}
-                placeholder={t('node.storyboardGen.framePlaceholder', {
-                  index: String(index + 1).padStart(2, '0'),
-                })}
-                wrap="soft"
-                className="ui-scrollbar nodrag nowheel relative z-10 h-full w-full resize-none overflow-y-auto overflow-x-hidden bg-transparent px-1.5 py-1 text-left text-[10px] leading-4 text-transparent caret-text-dark placeholder:text-text-muted/40 focus:border-accent/50 focus:outline-none whitespace-pre-wrap break-words"
-                style={{ scrollbarGutter: 'stable' }}
-              />
-            </div>
             );
           })}
         </div>
@@ -1471,8 +1590,8 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
                 }}
                 onMouseEnter={() => setPickerActiveIndex(imageIndex)}
                 className={`flex w-full items-center gap-2 border border-transparent bg-bg-dark/70 px-2 py-2 text-left text-sm text-text-dark transition-colors hover:border-[rgba(255,255,255,0.18)] ${pickerActiveIndex === imageIndex
-                    ? 'border-[rgba(255,255,255,0.24)] bg-bg-dark'
-                    : ''
+                  ? 'border-[rgba(255,255,255,0.24)] bg-bg-dark'
+                  : ''
                   }`}
               >
                 <CanvasNodeImage
@@ -1499,6 +1618,7 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
         <ModelParamsControls
           imageModels={imageModels}
           selectedModel={selectedModel}
+          resolutionOptions={resolutionOptions}
           selectedResolution={selectedResolution}
           selectedAspectRatio={selectedAspectRatio}
           aspectRatioOptions={aspectRatioOptions}
@@ -1508,6 +1628,15 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
           }
           onAspectRatioChange={(aspectRatio) =>
             updateNodeData(id, { requestAspectRatio: aspectRatio })
+          }
+          extraParams={nodeData.extraParams}
+          onExtraParamChange={(key, value) =>
+            updateNodeData(id, {
+              extraParams: {
+                ...(nodeData.extraParams ?? {}),
+                [key]: value,
+              },
+            })
           }
           showWebSearchToggle={showWebSearchToggle}
           webSearchEnabled={webSearchEnabled}
@@ -1525,7 +1654,7 @@ export const StoryboardGenNode = memo(({ id, data, selected, width, height }: St
           paramsChipClassName={NODE_CONTROL_PARAMS_CHIP_CLASS}
           modelPanelAlign="center"
           paramsPanelAlign="center"
-          modelPanelClassName="w-[360px] p-2"
+          modelPanelClassName="inline-block min-w-[300px] max-w-[calc(100vw-32px)] p-2"
           paramsPanelClassName="w-[420px] p-3"
         />
 
