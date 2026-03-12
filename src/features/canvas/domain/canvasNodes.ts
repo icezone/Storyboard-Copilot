@@ -8,6 +8,8 @@ export const CANVAS_NODE_TYPES = {
   group: 'groupNode',
   storyboardSplit: 'storyboardNode',
   storyboardGen: 'storyboardGenNode',
+  videoGen: 'videoGenNode',
+  videoResult: 'videoResultNode',
 } as const;
 
 export type CanvasNodeType = (typeof CANVAS_NODE_TYPES)[keyof typeof CANVAS_NODE_TYPES];
@@ -140,6 +142,34 @@ export interface StoryboardGenNodeData {
   [key: string]: unknown;
 }
 
+export interface VideoGenNodeData extends NodeDisplayData {
+  prompt: string;
+  model: string;
+  duration: number;
+  aspectRatio: string;
+  enableAudio: boolean;
+  seed?: number | null;
+  extraParams?: Record<string, unknown>;
+  videoUrl: string | null;
+  thumbnailUrl?: string | null;
+  referenceImageUrl?: string | null;
+  startFrameUrl?: string | null;
+  endFrameUrl?: string | null;
+  isGenerating?: boolean;
+  generationStartedAt?: number | null;
+  generationDurationMs?: number;
+  jobId?: string | null;
+  errorMessage?: string | null;
+}
+
+export interface VideoResultNodeData extends NodeDisplayData {
+  videoUrl: string;
+  thumbnailUrl?: string | null;
+  prompt?: string;
+  duration?: number;
+  aspectRatio?: string;
+}
+
 export type CanvasNodeData =
   | UploadImageNodeData
   | ExportImageNodeData
@@ -147,7 +177,9 @@ export type CanvasNodeData =
   | GroupNodeData
   | ImageEditNodeData
   | StoryboardSplitNodeData
-  | StoryboardGenNodeData;
+  | StoryboardGenNodeData
+  | VideoGenNodeData
+  | VideoResultNodeData;
 
 export type CanvasNode = Node<CanvasNodeData, CanvasNodeType>;
 export type CanvasEdge = Edge;
@@ -218,6 +250,12 @@ export function isStoryboardGenNode(
   node: CanvasNode | null | undefined
 ): node is Node<StoryboardGenNodeData, typeof CANVAS_NODE_TYPES.storyboardGen> {
   return node?.type === CANVAS_NODE_TYPES.storyboardGen;
+}
+
+export function isVideoGenNode(
+  node: CanvasNode | null | undefined
+): node is Node<VideoGenNodeData, typeof CANVAS_NODE_TYPES.videoGen> {
+  return node?.type === CANVAS_NODE_TYPES.videoGen;
 }
 
 export function nodeHasImage(node: CanvasNode | null | undefined): boolean {

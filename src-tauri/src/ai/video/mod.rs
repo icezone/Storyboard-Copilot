@@ -1,85 +1,49 @@
+pub mod cache_manager;
 pub mod error;
 pub mod providers;
-pub mod video;
+pub mod types;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tracing::info;
 
-use error::AIError;
-
-#[derive(Debug, Clone)]
-pub struct GenerateRequest {
-    pub prompt: String,
-    pub model: String,
-    pub size: String,
-    pub aspect_ratio: String,
-    pub reference_images: Option<Vec<String>>,
-    pub extra_params: Option<HashMap<String, serde_json::Value>>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ProviderTaskHandle {
-    pub task_id: String,
-    pub metadata: Option<serde_json::Value>,
-}
-
-#[derive(Debug, Clone)]
-pub enum ProviderTaskSubmission {
-    Queued(ProviderTaskHandle),
-    Succeeded(String),
-}
-
-#[derive(Debug, Clone)]
-pub enum ProviderTaskPollResult {
-    Running,
-    Succeeded(String),
-    Failed(String),
-}
+use error::VideoError;
+use types::{VideoGenerateRequest, VideoJobStatus};
 
 #[async_trait::async_trait]
-pub trait AIProvider: Send + Sync {
+pub trait VideoProvider: Send + Sync {
+    /// Returns the provider name (e.g., "kling")
     fn name(&self) -> &str;
+
+    /// Checks if the provider supports a given model
     fn supports_model(&self, model: &str) -> bool;
 
+    /// Lists all models supported by this provider
     fn list_models(&self) -> Vec<String> {
         Vec::new()
     }
 
-    async fn set_api_key(&self, _api_key: String) -> Result<(), AIError> {
-        Err(AIError::Provider(format!(
+    /// Sets the API key for this provider
+    async fn set_api_key(&self, _api_key: String) -> Result<(), VideoError> {
+        Err(VideoError::Provider(format!(
             "Provider '{}' does not support API key configuration",
             self.name()
         )))
     }
 
-    fn supports_task_resume(&self) -> bool {
-        false
-    }
+    /// Submits a video generation job and returns the job ID
+    async fn generate(&self, request: VideoGenerateRequest) -> Result<String, VideoError>;
 
-    async fn submit_task(&self, _request: GenerateRequest) -> Result<ProviderTaskSubmission, AIError> {
-        Err(AIError::Provider(format!(
-            "Provider '{}' does not support resumable task submission",
-            self.name()
-        )))
-    }
-
-    async fn poll_task(&self, _handle: ProviderTaskHandle) -> Result<ProviderTaskPollResult, AIError> {
-        Err(AIError::Provider(format!(
-            "Provider '{}' does not support resumable task polling",
-            self.name()
-        )))
-    }
-
-    async fn generate(&self, request: GenerateRequest) -> Result<String, AIError>;
+    /// Gets the current status of a video generation job
+    async fn get_status(&self, job_id: &str) -> Result<VideoJobStatus, VideoError>;
 }
 
-pub struct ProviderRegistry {
-    providers: HashMap<String, Arc<dyn AIProvider>>,
+pub struct VideoProviderRegistry {
+    providers: HashMap<String, Arc<dyn VideoProvider>>,
     default_provider: Option<String>,
 }
 
-impl ProviderRegistry {
+impl VideoProviderRegistry {
     pub fn new() -> Self {
         Self {
             providers: HashMap::new(),
@@ -87,20 +51,20 @@ impl ProviderRegistry {
         }
     }
 
-    pub fn register_provider(&mut self, provider: Arc<dyn AIProvider>) {
+    pub fn register_provider(&mut self, provider: Arc<dyn VideoProvider>) {
         let name = provider.name().to_string();
-        info!("Registering AI provider: {}", name);
+        info!("Registering video provider: {}", name);
         self.providers.insert(name.clone(), provider);
         if self.default_provider.is_none() {
             self.default_provider = Some(name);
         }
     }
 
-    pub fn get_provider(&self, name: &str) -> Option<&Arc<dyn AIProvider>> {
+    pub fn get_provider(&self, name: &str) -> Option<&Arc<dyn VideoProvider>> {
         self.providers.get(name)
     }
 
-    pub fn get_default_provider(&self) -> Option<&Arc<dyn AIProvider>> {
+    pub fn get_default_provider(&self) -> Option<&Arc<dyn VideoProvider>> {
         self.default_provider
             .as_ref()
             .and_then(|name| self.providers.get(name))
@@ -112,13 +76,15 @@ impl ProviderRegistry {
         providers
     }
 
-    pub fn resolve_provider_for_model(&self, model: &str) -> Option<&Arc<dyn AIProvider>> {
+    pub fn resolve_provider_for_model(&self, model: &str) -> Option<&Arc<dyn VideoProvider>> {
+        // Try to extract provider from model ID (e.g., "kling/kling-3.0" -> "kling")
         if let Some((provider_id, _)) = model.split_once('/') {
             if let Some(provider) = self.providers.get(provider_id) {
                 return Some(provider);
             }
         }
 
+        // Fall back to checking each provider
         self.providers
             .values()
             .find(|provider| provider.supports_model(model))
@@ -149,7 +115,7 @@ impl ProviderRegistry {
     }
 }
 
-impl Default for ProviderRegistry {
+impl Default for VideoProviderRegistry {
     fn default() -> Self {
         Self::new()
     }

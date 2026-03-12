@@ -9,6 +9,7 @@ use commands::image;
 use commands::project_state;
 use commands::system;
 use commands::update;
+use commands::video;
 use tauri::Manager;
 use tracing::{info, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -181,6 +182,15 @@ pub fn run() {
             ai_commands::get_generate_image_job,
             ai_commands::generate_image,
             ai_commands::list_models,
+            video::set_video_api_key,
+            video::generate_video,
+            video::poll_video_job_status,
+            video::list_video_models,
+            video::cache_video,
+            video::get_cached_video_path,
+            video::get_video_cache_stats,
+            video::clear_video_cache,
+            video::cleanup_old_videos,
             project_state::list_project_summaries,
             project_state::get_project_record,
             project_state::upsert_project_record,

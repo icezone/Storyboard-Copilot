@@ -12,7 +12,8 @@
     "close": "Close",
     "loading": "Loading...",
     "error": "Error",
-    "success": "Success"
+    "success": "Success",
+    "none": "None"
   },
   "theme": {
     "dark": "Dark",
@@ -30,6 +31,7 @@
     "addImage": "Add Image",
     "splitStoryboard": "Split Storyboard",
     "generate": "Generate",
+    "reference": "Reference",
     "emptyHintTitle": "Double-click to add a node",
     "emptyHintSubtitle": "Double-click to add a node",
     "toolbar": {
@@ -88,6 +90,7 @@
     "menu": {
       "uploadImage": "Upload Image",
       "aiImageGeneration": "AI Image",
+      "videoGeneration": "AI Video",
       "storyboard": "Storyboard Node",
       "storyboardGen": "Storyboard Generation",
       "textAnnotation": "Text Annotation"
@@ -140,7 +143,42 @@
     "textAnnotation": {
       "placeholder": "Write Markdown text. It will render when unselected.",
       "empty": "Empty note"
+    },
+    "videoGen": {
+      "title": "AI Video",
+      "prompt": "Prompt",
+      "promptPlaceholder": "Describe the video you want to generate",
+      "duration": "Duration",
+      "aspectRatio": "Aspect Ratio",
+      "enableAudio": "Enable Audio",
+      "seed": "Seed",
+      "frameSelection": "Frame Selection",
+      "startFrame": "Start Frame",
+      "endFrame": "End Frame",
+      "optional": "optional",
+      "generate": "Generate",
+      "generating": "Generating video...",
+      "completed": "Video completed",
+      "failed": "Generation failed",
+      "retry": "Retry",
+      "download": "Download",
+      "noVideo": "No video generated yet",
+      "noPrompt": "Please enter a prompt",
+      "noApiKey": "Please set API key in Settings",
+      "noApiKeyDetails": "Kling provider API key is required for video generation. Please add it in Settings."
     }
+  },
+  "videoErrors": {
+    "generation_failed": "Video generation failed",
+    "provider_unavailable": "Video provider unavailable",
+    "invalid_prompt": "Invalid prompt",
+    "content_policy_violation": "Content policy violation",
+    "rate_limit_exceeded": "Rate limit exceeded",
+    "insufficient_credits": "Insufficient credits",
+    "job_timeout": "Video generation timeout",
+    "network_error": "Network error",
+    "cache_failed": "Cache operation failed",
+    "download_failed": "Download failed"
   },
   "viewer": {
     "imageAlt": "Image",
@@ -205,6 +243,8 @@
     "aboutDesc": "Application information",
     "general": "General",
     "generalDesc": "General settings",
+    "video": "Video",
+    "videoDesc": "Video generation settings",
     "apiKey": "API Key",
     "model": "Model",
     "enterApiKey": "Enter API Key",
@@ -286,7 +326,34 @@
     "checkingUpdate": "Checking for updates...",
     "checkUpdateHasUpdate": "New version detected.",
     "checkUpdateUpToDate": "You are on the latest version.",
-    "checkUpdateFailed": "Update check failed. Please try again later."
+    "checkUpdateFailed": "Update check failed. Please try again later.",
+    "videoStorage": {
+      "title": "Video Download Paths",
+      "downloadPaths": "Preset Download Paths",
+      "downloadPathsDesc": "Add frequently used video download directories for quick access",
+      "addPath": "Enter path or click folder icon",
+      "selectPath": "Select Directory",
+      "defaultPath": "Default Download Path",
+      "autoReveal": "Automatically reveal videos in file explorer after download",
+      "noPresetPaths": "No preset paths configured. Add a directory using the input above."
+    },
+    "videoCache": {
+      "title": "Video Cache",
+      "maxSize": "Maximum Cache Size",
+      "maxSizeDesc": "Maximum disk space for cached videos (0-5000 MB)",
+      "maxAge": "Maximum Cache Age",
+      "maxAgeDesc": "Automatically remove videos older than this many days",
+      "days": "days",
+      "autoCleanup": "Auto cleanup old videos on startup",
+      "autoCleanupDesc": "Automatically clean up videos exceeding the age limit when the app starts",
+      "currentStats": "Cache Statistics",
+      "totalSize": "Total Size",
+      "fileCount": "File Count",
+      "oldestFile": "Oldest File",
+      "clearCache": "Clear All",
+      "clearCacheConfirm": "Are you sure you want to clear all cached videos?",
+      "cacheCleared": "Cache cleared successfully"
+    }
   },
   "pricing": {
     "nativePrice": "Native: {{value}}",

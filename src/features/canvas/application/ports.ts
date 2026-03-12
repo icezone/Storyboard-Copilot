@@ -52,6 +52,36 @@ export interface AiGateway {
   }>;
 }
 
+export interface GenerateVideoPayload {
+  prompt: string;
+  model: string;
+  duration?: number;
+  aspectRatio?: string;
+  enableAudio?: boolean;
+  seed?: number;
+  startFrameUrl?: string;
+  endFrameUrl?: string;
+  extraParams?: Record<string, unknown>;
+}
+
+export interface VideoJobStatus {
+  jobId: string;
+  state: 'pending' | 'processing' | 'completed' | 'failed' | 'timeout';
+  progress?: number;
+  videoUrl?: string;
+  errorMessage?: string;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export interface VideoAiGateway {
+  setApiKey: (provider: string, apiKey: string) => Promise<void>;
+  generateVideo: (payload: GenerateVideoPayload) => Promise<{ jobId: string }>;
+  pollJobStatus: (jobId: string, model: string) => Promise<VideoJobStatus>;
+  cacheVideo: (videoUrl: string, videoId: string) => Promise<string>;
+  downloadVideo: (videoUrl: string, targetPath: string, revealInExplorer: boolean) => Promise<void>;
+}
+
 export interface ImageSplitGateway {
   split: (
     imageSource: string,

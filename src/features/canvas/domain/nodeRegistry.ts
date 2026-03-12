@@ -14,7 +14,7 @@ import {
   type UploadImageNodeData,
 } from './canvasNodes';
 import { DEFAULT_NODE_DISPLAY_NAME } from './nodeDisplay';
-import { DEFAULT_IMAGE_MODEL_ID } from '../models';
+import { DEFAULT_IMAGE_MODEL_ID, DEFAULT_VIDEO_MODEL_ID } from '../models';
 
 export type MenuIconKey = 'upload' | 'sparkles' | 'layout' | 'text';
 
@@ -251,6 +251,68 @@ const storyboardGenNodeDefinition: CanvasNodeDefinition<StoryboardGenNodeData> =
   }),
 };
 
+const videoGenNodeDefinition: CanvasNodeDefinition<import('./canvasNodes').VideoGenNodeData> = {
+  type: CANVAS_NODE_TYPES.videoGen,
+  menuLabelKey: 'node.menu.videoGeneration',
+  menuIcon: 'sparkles',
+  visibleInMenu: true,
+  capabilities: {
+    toolbar: true,
+    promptInput: false,
+  },
+  connectivity: {
+    sourceHandle: true,
+    targetHandle: true,
+    connectMenu: {
+      fromSource: false,
+      fromTarget: false,
+    },
+  },
+  createDefaultData: () => ({
+    displayName: DEFAULT_NODE_DISPLAY_NAME[CANVAS_NODE_TYPES.videoGen],
+    prompt: '',
+    model: DEFAULT_VIDEO_MODEL_ID,
+    duration: 5,
+    aspectRatio: '16:9',
+    enableAudio: true,
+    seed: null,
+    extraParams: {},
+    videoUrl: null,
+    thumbnailUrl: null,
+    referenceImageUrl: null,
+    startFrameUrl: null,
+    endFrameUrl: null,
+    isGenerating: false,
+    generationStartedAt: null,
+    generationDurationMs: 0,
+    jobId: null,
+    errorMessage: null,
+  }),
+};
+
+const videoResultNodeDefinition: CanvasNodeDefinition<import('./canvasNodes').VideoResultNodeData> = {
+  type: CANVAS_NODE_TYPES.videoResult,
+  menuLabelKey: '',
+  menuIcon: 'sparkles',
+  visibleInMenu: false,
+  capabilities: {
+    toolbar: false,
+    promptInput: false,
+  },
+  connectivity: {
+    sourceHandle: false,
+    targetHandle: true,
+    connectMenu: {
+      fromSource: false,
+      fromTarget: false,
+    },
+  },
+  createDefaultData: () => ({
+    displayName: DEFAULT_NODE_DISPLAY_NAME[CANVAS_NODE_TYPES.videoResult],
+    videoUrl: '',
+  }),
+};
+
 export const canvasNodeDefinitions: Record<CanvasNodeType, CanvasNodeDefinition> = {
   [CANVAS_NODE_TYPES.upload]: uploadNodeDefinition,
   [CANVAS_NODE_TYPES.imageEdit]: imageEditNodeDefinition,
@@ -259,6 +321,8 @@ export const canvasNodeDefinitions: Record<CanvasNodeType, CanvasNodeDefinition>
   [CANVAS_NODE_TYPES.group]: groupNodeDefinition,
   [CANVAS_NODE_TYPES.storyboardSplit]: storyboardSplitDefinition,
   [CANVAS_NODE_TYPES.storyboardGen]: storyboardGenNodeDefinition,
+  [CANVAS_NODE_TYPES.videoGen]: videoGenNodeDefinition,
+  [CANVAS_NODE_TYPES.videoResult]: videoResultNodeDefinition,
 };
 
 export function getNodeDefinition(type: CanvasNodeType): CanvasNodeDefinition {

@@ -22,7 +22,7 @@ export interface ImageModelRuntimeContext {
   extraParams?: Record<string, unknown>;
 }
 
-export type ExtraParamType = 'boolean' | 'enum' | 'number' | 'string';
+export type ExtraParamType = 'boolean' | 'enum' | 'number' | 'string' | 'array';
 
 export interface ExtraParamDefinition {
   key: string;
@@ -58,4 +58,28 @@ export interface ImageModelDefinition {
     requestModel: string;
     modeLabel: string;
   };
+}
+
+export interface DurationOption {
+  value: number;
+  label: string;
+}
+
+export interface VideoModelDefinition {
+  id: string;
+  mediaType: 'video';
+  displayName: string;
+  providerId: string;
+  description: string;
+  eta: string;
+  expectedDurationMs?: number;
+  defaultDuration: number;
+  defaultAspectRatio: string;
+  durations: DurationOption[];
+  aspectRatios: AspectRatioOption[];
+  supportsAudio: boolean;
+  supportsSeed: boolean;
+  supportsImageToVideo: boolean;
+  extraParamsSchema?: ExtraParamDefinition[];
+  defaultExtraParams?: Record<string, unknown>;
 }

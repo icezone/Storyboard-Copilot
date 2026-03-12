@@ -37,6 +37,12 @@ interface SettingsState {
   canvasEdgeRoutingMode: CanvasEdgeRoutingMode;
   autoCheckAppUpdateOnLaunch: boolean;
   enableUpdateDialog: boolean;
+  videoDownloadPresetPaths: string[];
+  defaultVideoDownloadPath?: string;
+  autoRevealVideoInExplorer: boolean;
+  maxVideoCacheSizeMB: number;
+  maxVideoCacheAgeDays: number;
+  videoCacheAutoCleanupOnStartup: boolean;
   setProviderApiKey: (providerId: string, key: string) => void;
   setGrsaiNanoBananaProModel: (model: string) => void;
   setHideProviderGuidePopover: (hide: boolean) => void;
@@ -59,6 +65,12 @@ interface SettingsState {
   setCanvasEdgeRoutingMode: (mode: CanvasEdgeRoutingMode) => void;
   setAutoCheckAppUpdateOnLaunch: (enabled: boolean) => void;
   setEnableUpdateDialog: (enabled: boolean) => void;
+  setVideoDownloadPresetPaths: (paths: string[]) => void;
+  setDefaultVideoDownloadPath: (path: string | undefined) => void;
+  setAutoRevealVideoInExplorer: (enabled: boolean) => void;
+  setMaxVideoCacheSizeMB: (sizeMB: number) => void;
+  setMaxVideoCacheAgeDays: (days: number) => void;
+  setVideoCacheAutoCleanupOnStartup: (enabled: boolean) => void;
 }
 
 const HEX_COLOR_PATTERN = /^#?[0-9a-fA-F]{6}$/;
@@ -184,6 +196,12 @@ export const useSettingsStore = create<SettingsState>()(
       canvasEdgeRoutingMode: 'spline',
       autoCheckAppUpdateOnLaunch: true,
       enableUpdateDialog: true,
+      videoDownloadPresetPaths: [],
+      defaultVideoDownloadPath: undefined,
+      autoRevealVideoInExplorer: true,
+      maxVideoCacheSizeMB: 1024,
+      maxVideoCacheAgeDays: 30,
+      videoCacheAutoCleanupOnStartup: true,
       setProviderApiKey: (providerId, key) =>
         set((state) => ({
           apiKeys: {
@@ -233,6 +251,27 @@ export const useSettingsStore = create<SettingsState>()(
         set({ canvasEdgeRoutingMode: normalizeCanvasEdgeRoutingMode(canvasEdgeRoutingMode) }),
       setAutoCheckAppUpdateOnLaunch: (enabled) => set({ autoCheckAppUpdateOnLaunch: enabled }),
       setEnableUpdateDialog: (enabled) => set({ enableUpdateDialog: enabled }),
+      setVideoDownloadPresetPaths: (paths) => {
+        const uniquePaths = Array.from(
+          new Set(paths.map((path) => path.trim()).filter((path) => path.length > 0))
+        ).slice(0, 8);
+        set({ videoDownloadPresetPaths: uniquePaths });
+      },
+      setDefaultVideoDownloadPath: (path) => {
+        const normalizedPath = path?.trim() || undefined;
+        set({ defaultVideoDownloadPath: normalizedPath });
+      },
+      setAutoRevealVideoInExplorer: (enabled) => set({ autoRevealVideoInExplorer: enabled }),
+      setMaxVideoCacheSizeMB: (sizeMB) => {
+        const clampedSize = Math.max(0, Math.min(sizeMB, 10000));
+        set({ maxVideoCacheSizeMB: clampedSize });
+      },
+      setMaxVideoCacheAgeDays: (days) => {
+        const clampedDays = Math.max(1, Math.min(days, 365));
+        set({ maxVideoCacheAgeDays: clampedDays });
+      },
+      setVideoCacheAutoCleanupOnStartup: (enabled) =>
+        set({ videoCacheAutoCleanupOnStartup: enabled }),
     }),
     {
       name: 'settings-storage',
@@ -263,6 +302,12 @@ export const useSettingsStore = create<SettingsState>()(
           usdToCnyRate?: number | string;
           preferDiscountedPrice?: boolean;
           grsaiCreditTierId?: GrsaiCreditTierId | string;
+          videoDownloadPresetPaths?: string[];
+          defaultVideoDownloadPath?: string;
+          autoRevealVideoInExplorer?: boolean;
+          maxVideoCacheSizeMB?: number;
+          maxVideoCacheAgeDays?: number;
+          videoCacheAutoCleanupOnStartup?: boolean;
         };
 
         const migratedApiKeys = normalizeApiKeys(state.apiKeys);
@@ -293,6 +338,12 @@ export const useSettingsStore = create<SettingsState>()(
             usdToCnyRate: normalizeUsdToCnyRate(state.usdToCnyRate),
             preferDiscountedPrice: state.preferDiscountedPrice ?? false,
             grsaiCreditTierId: normalizeGrsaiCreditTierId(state.grsaiCreditTierId),
+            videoDownloadPresetPaths: state.videoDownloadPresetPaths ?? [],
+            defaultVideoDownloadPath: state.defaultVideoDownloadPath,
+            autoRevealVideoInExplorer: state.autoRevealVideoInExplorer ?? true,
+            maxVideoCacheSizeMB: state.maxVideoCacheSizeMB ?? 1024,
+            maxVideoCacheAgeDays: state.maxVideoCacheAgeDays ?? 30,
+            videoCacheAutoCleanupOnStartup: state.videoCacheAutoCleanupOnStartup ?? true,
           };
         }
 
@@ -320,6 +371,12 @@ export const useSettingsStore = create<SettingsState>()(
           usdToCnyRate: normalizeUsdToCnyRate(state.usdToCnyRate),
           preferDiscountedPrice: state.preferDiscountedPrice ?? false,
           grsaiCreditTierId: normalizeGrsaiCreditTierId(state.grsaiCreditTierId),
+          videoDownloadPresetPaths: state.videoDownloadPresetPaths ?? [],
+          defaultVideoDownloadPath: state.defaultVideoDownloadPath,
+          autoRevealVideoInExplorer: state.autoRevealVideoInExplorer ?? true,
+          maxVideoCacheSizeMB: state.maxVideoCacheSizeMB ?? 1024,
+          maxVideoCacheAgeDays: state.maxVideoCacheAgeDays ?? 30,
+          videoCacheAutoCleanupOnStartup: state.videoCacheAutoCleanupOnStartup ?? true,
         };
       },
     }

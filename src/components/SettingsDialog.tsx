@@ -110,6 +110,12 @@ export function SettingsDialog({
     canvasEdgeRoutingMode,
     autoCheckAppUpdateOnLaunch,
     enableUpdateDialog,
+    videoDownloadPresetPaths,
+    defaultVideoDownloadPath,
+    autoRevealVideoInExplorer,
+    maxVideoCacheSizeMB,
+    maxVideoCacheAgeDays,
+    videoCacheAutoCleanupOnStartup,
     setProviderApiKey,
     setGrsaiNanoBananaProModel,
     setDownloadPresetPaths,
@@ -131,6 +137,12 @@ export function SettingsDialog({
     setCanvasEdgeRoutingMode,
     setAutoCheckAppUpdateOnLaunch,
     setEnableUpdateDialog,
+    setVideoDownloadPresetPaths,
+    setDefaultVideoDownloadPath,
+    setAutoRevealVideoInExplorer,
+    setMaxVideoCacheSizeMB,
+    setMaxVideoCacheAgeDays,
+    setVideoCacheAutoCleanupOnStartup,
   } = useSettingsStore();
   const providers = useMemo(() => {
     const providerOrder = ['kie', 'ppio', 'fal', 'grsai'];
@@ -183,6 +195,13 @@ export function SettingsDialog({
     autoCheckAppUpdateOnLaunch
   );
   const [localEnableUpdateDialog, setLocalEnableUpdateDialog] = useState(enableUpdateDialog);
+  const [localVideoDownloadPathInput, setLocalVideoDownloadPathInput] = useState('');
+  const [localVideoDownloadPresetPaths, setLocalVideoDownloadPresetPaths] = useState(videoDownloadPresetPaths);
+  const [localDefaultVideoDownloadPath, setLocalDefaultVideoDownloadPath] = useState(defaultVideoDownloadPath);
+  const [localAutoRevealVideoInExplorer, setLocalAutoRevealVideoInExplorer] = useState(autoRevealVideoInExplorer);
+  const [localMaxVideoCacheSizeMB, setLocalMaxVideoCacheSizeMB] = useState(maxVideoCacheSizeMB);
+  const [localMaxVideoCacheAgeDays, setLocalMaxVideoCacheAgeDays] = useState(maxVideoCacheAgeDays);
+  const [localVideoCacheAutoCleanupOnStartup, setLocalVideoCacheAutoCleanupOnStartup] = useState(videoCacheAutoCleanupOnStartup);
   const [checkUpdateStatus, setCheckUpdateStatus] = useState<'' | 'checking' | 'has-update' | 'up-to-date' | 'failed'>('');
   const [revealedApiKeys, setRevealedApiKeys] = useState<Record<string, boolean>>({});
   const { shouldRender, isVisible } = useDialogTransition(isOpen, UI_DIALOG_TRANSITION_MS);
@@ -471,6 +490,20 @@ export function SettingsDialog({
               `}
               >
                 <span className="text-sm">{t('settings.experimental')}</span>
+              </button>
+
+              <button
+                onClick={() => setActiveCategory('video')}
+                className={`
+                w-full flex items-center gap-3 px-4 py-2.5 text-left
+                transition-colors
+                ${activeCategory === 'video'
+                    ? 'bg-accent/10 text-text-dark border-l-2 border-accent'
+                    : 'text-text-muted hover:bg-bg-dark hover:text-text-dark'
+                  }
+              `}
+              >
+                <span className="text-sm">{t('settings.video')}</span>
               </button>
 
               <button
@@ -1003,6 +1036,235 @@ export function SettingsDialog({
                   <button
                     onClick={handleSave}
                     className="rounded bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent/80"
+                  >
+                    {t('common.save')}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {activeCategory === 'video' && (
+              <>
+                <div className="px-6 py-5 border-b border-border-dark">
+                  <h2 className="text-lg font-semibold text-text-dark">
+                    {t('settings.video')}
+                  </h2>
+                  <p className="text-sm text-text-muted mt-1">
+                    {t('settings.videoDesc')}
+                  </p>
+                </div>
+
+                <div className="ui-scrollbar flex-1 space-y-6 overflow-y-auto p-6">
+                  {/* Video Download Paths */}
+                  <section>
+                    <h3 className="text-sm font-medium text-text-dark mb-3">
+                      {t('settings.videoStorage.title')}
+                    </h3>
+                    <p className="text-xs text-text-muted mb-3">
+                      {t('settings.videoStorage.downloadPathsDesc')}
+                    </p>
+
+                    {/* Preset Paths List */}
+                    {localVideoDownloadPresetPaths.length === 0 ? (
+                      <div className="rounded-lg border border-border-dark bg-bg-dark p-4 text-center text-sm text-text-muted">
+                        {t('settings.videoStorage.noPresetPaths')}
+                      </div>
+                    ) : (
+                      <div className="space-y-2 mb-3">
+                        {localVideoDownloadPresetPaths.map((path, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center gap-2 rounded-lg border border-border-dark bg-bg-dark p-3"
+                          >
+                            <span className="flex-1 text-sm text-text-dark truncate">
+                              {path}
+                            </span>
+                            <button
+                              onClick={() => {
+                                const updated = localVideoDownloadPresetPaths.filter((_, i) => i !== index);
+                                setLocalVideoDownloadPresetPaths(updated);
+                              }}
+                              className="shrink-0 rounded p-1.5 text-text-muted transition-colors hover:bg-bg-dark hover:text-red-400"
+                              title={t('common.delete')}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Add Path Input */}
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={localVideoDownloadPathInput}
+                        onChange={(e) => setLocalVideoDownloadPathInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && localVideoDownloadPathInput.trim()) {
+                            const newPath = localVideoDownloadPathInput.trim();
+                            if (!localVideoDownloadPresetPaths.includes(newPath)) {
+                              setLocalVideoDownloadPresetPaths([
+                                ...localVideoDownloadPresetPaths,
+                                newPath,
+                              ]);
+                            }
+                            setLocalVideoDownloadPathInput('');
+                          }
+                        }}
+                        placeholder={t('settings.videoStorage.addPath')}
+                        className="flex-1 rounded-lg border border-border-dark bg-surface-dark px-3 py-2 text-sm text-text-dark placeholder:text-text-muted focus:border-accent focus:outline-none"
+                      />
+                      <button
+                        onClick={async () => {
+                          try {
+                            const result = await open({
+                              directory: true,
+                              multiple: false,
+                              title: t('settings.videoStorage.selectPath'),
+                            });
+                            if (result && typeof result === 'string') {
+                              if (!localVideoDownloadPresetPaths.includes(result)) {
+                                setLocalVideoDownloadPresetPaths([
+                                  ...localVideoDownloadPresetPaths,
+                                  result,
+                                ]);
+                              }
+                            }
+                          } catch (error) {
+                            console.error('Failed to open directory picker:', error);
+                          }
+                        }}
+                        className="shrink-0 rounded-lg bg-accent px-4 py-2 text-sm text-white transition-colors hover:bg-accent/90"
+                      >
+                        <FolderOpen className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          const newPath = localVideoDownloadPathInput.trim();
+                          if (newPath && !localVideoDownloadPresetPaths.includes(newPath)) {
+                            setLocalVideoDownloadPresetPaths([
+                              ...localVideoDownloadPresetPaths,
+                              newPath,
+                            ]);
+                            setLocalVideoDownloadPathInput('');
+                          }
+                        }}
+                        disabled={!localVideoDownloadPathInput.trim()}
+                        className="shrink-0 rounded-lg bg-accent px-4 py-2 text-sm text-white transition-colors hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    {/* Default Path Selector */}
+                    {localVideoDownloadPresetPaths.length > 0 && (
+                      <div className="mt-4">
+                        <label className="text-xs text-text-muted mb-2 block">
+                          {t('settings.videoStorage.defaultPath')}
+                        </label>
+                        <select
+                          value={localDefaultVideoDownloadPath || ''}
+                          onChange={(e) => setLocalDefaultVideoDownloadPath(e.target.value || undefined)}
+                          className="w-full rounded-lg border border-border-dark bg-surface-dark px-3 py-2 text-sm text-text-dark focus:border-accent focus:outline-none"
+                        >
+                          <option value="">({t('common.none')})</option>
+                          {localVideoDownloadPresetPaths.map((path, index) => (
+                            <option key={index} value={path}>
+                              {path}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Auto Reveal */}
+                    <div className="mt-4">
+                      <label className="flex items-center gap-2 text-sm text-text-dark cursor-pointer">
+                        <UiCheckbox
+                          checked={localAutoRevealVideoInExplorer}
+                          onCheckedChange={setLocalAutoRevealVideoInExplorer}
+                        />
+                        <span>{t('settings.videoStorage.autoReveal')}</span>
+                      </label>
+                    </div>
+                  </section>
+
+                  {/* Video Cache Settings */}
+                  <section>
+                    <h3 className="text-sm font-medium text-text-dark mb-3">
+                      {t('settings.videoCache.title')}
+                    </h3>
+
+                    {/* Max Cache Size */}
+                    <div className="space-y-2 mb-4">
+                      <label className="text-xs text-text-muted block">
+                        {t('settings.videoCache.maxSize')}: {localMaxVideoCacheSizeMB} MB
+                      </label>
+                      <p className="text-xs text-text-muted">
+                        {t('settings.videoCache.maxSizeDesc')}
+                      </p>
+                      <input
+                        type="range"
+                        min="0"
+                        max="5000"
+                        step="100"
+                        value={localMaxVideoCacheSizeMB}
+                        onChange={(e) => setLocalMaxVideoCacheSizeMB(Number(e.target.value))}
+                        className="w-full"
+                      />
+                    </div>
+
+                    {/* Max Cache Age */}
+                    <div className="space-y-2 mb-4">
+                      <label className="text-xs text-text-muted block">
+                        {t('settings.videoCache.maxAge')}: {localMaxVideoCacheAgeDays} {t('settings.videoCache.days')}
+                      </label>
+                      <p className="text-xs text-text-muted">
+                        {t('settings.videoCache.maxAgeDesc')}
+                      </p>
+                      <input
+                        type="range"
+                        min="1"
+                        max="90"
+                        step="1"
+                        value={localMaxVideoCacheAgeDays}
+                        onChange={(e) => setLocalMaxVideoCacheAgeDays(Number(e.target.value))}
+                        className="w-full"
+                      />
+                    </div>
+
+                    {/* Auto Cleanup */}
+                    <div className="mb-4">
+                      <label className="flex items-start gap-2 text-sm text-text-dark cursor-pointer">
+                        <UiCheckbox
+                          checked={localVideoCacheAutoCleanupOnStartup}
+                          onCheckedChange={setLocalVideoCacheAutoCleanupOnStartup}
+                          className="mt-0.5"
+                        />
+                        <div>
+                          <span className="block">{t('settings.videoCache.autoCleanup')}</span>
+                          <p className="text-xs text-text-muted mt-1">
+                            {t('settings.videoCache.autoCleanupDesc')}
+                          </p>
+                        </div>
+                      </label>
+                    </div>
+                  </section>
+                </div>
+
+                {/* Save Button */}
+                <div className="border-t border-border-dark p-6">
+                  <button
+                    onClick={() => {
+                      setVideoDownloadPresetPaths(localVideoDownloadPresetPaths);
+                      setDefaultVideoDownloadPath(localDefaultVideoDownloadPath);
+                      setAutoRevealVideoInExplorer(localAutoRevealVideoInExplorer);
+                      setMaxVideoCacheSizeMB(localMaxVideoCacheSizeMB);
+                      setMaxVideoCacheAgeDays(localMaxVideoCacheAgeDays);
+                      setVideoCacheAutoCleanupOnStartup(localVideoCacheAutoCleanupOnStartup);
+                    }}
+                    className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent/90"
                   >
                     {t('common.save')}
                   </button>
