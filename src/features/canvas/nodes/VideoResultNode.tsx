@@ -1,6 +1,6 @@
-import { memo, useState } from 'react';
+import { memo, useState, useMemo } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import { Download, Video } from 'lucide-react';
+import { Download, Video, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { CANVAS_NODE_TYPES, type VideoResultNodeData } from '@/features/canvas/domain/canvasNodes';
@@ -10,6 +10,7 @@ import { showErrorDialog } from '@/features/canvas/application/errorDialog';
 import { UiButton } from '@/components/ui';
 import { useCanvasStore } from '@/stores/canvasStore';
 import { useSettingsStore } from '@/stores/settingsStore';
+import { DEFAULT_VIDEO_MODEL_ID } from '@/features/canvas/models';
 
 type VideoResultNodeProps = NodeProps & {
   id: string;
@@ -19,6 +20,8 @@ type VideoResultNodeProps = NodeProps & {
 
 const VIDEO_RESULT_NODE_WIDTH = 400;
 const VIDEO_RESULT_NODE_HEIGHT = 320;
+const VIDEO_GEN_NODE_WIDTH = 520;
+const VIDEO_GEN_NODE_HEIGHT = 480;
 
 function VideoResultNodeComponent({
   id,
@@ -27,10 +30,27 @@ function VideoResultNodeComponent({
 }: VideoResultNodeProps): JSX.Element {
   const { t } = useTranslation();
   const setSelectedNode = useCanvasStore((state) => state.setSelectedNode);
+  const edges = useCanvasStore((state) => state.edges);
+  const addNode = useCanvasStore((state) => state.addNode);
+  const addEdge = useCanvasStore((state) => state.addEdge);
+  const findNodePosition = useCanvasStore((state) => state.findNodePosition);
   const videoDownloadPresetPaths = useSettingsStore((state) => state.videoDownloadPresetPaths);
   const [downloading, setDownloading] = useState(false);
 
   const resolvedTitle = resolveNodeDisplayName(CANVAS_NODE_TYPES.videoResult, data);
+
+  // Find source nodes (image inputs)
+  const sourceNodeIds = useMemo(() => {
+    // Find the VideoGenNode that created this result
+    const incomingEdges = edges.filter((edge) => edge.target === id);
+    if (incomingEdges.length === 0) return [];
+
+    const videoGenNodeId = incomingEdges[0].source;
+
+    // Find the edges going into the VideoGenNode
+    const videoGenIncomingEdges = edges.filter((edge) => edge.target === videoGenNodeId);
+    return videoGenIncomingEdges.map((edge) => edge.source);
+  }, [id, edges]);
 
   const handleDownload = async (targetPath?: string) => {
     if (!data.videoUrl || downloading) return;
@@ -43,8 +63,10 @@ function VideoResultNodeComponent({
       if (targetPath) {
         // Download to specific path via Tauri
         const { downloadVideoToDirectory } = await import('@/commands/video');
-        await downloadVideoToDirectory(url, `${targetPath}/${filename}`, true);
-        console.log('[VideoResultNode] Downloaded to:', `${targetPath}/${filename}`);
+        const { join } = await import('@tauri-apps/api/path');
+        const fullPath = await join(targetPath, filename);
+        await downloadVideoToDirectory(url, fullPath, true);
+        console.log('[VideoResultNode] Downloaded to:', fullPath);
       } else {
         // Browser download using fetch + blob (works with CORS)
         console.log('[VideoResultNode] Starting browser download:', url);
@@ -79,6 +101,54 @@ function VideoResultNodeComponent({
     }
   };
 
+  const handleRegenerate = () => {
+    if (!data.prompt) {
+      void showErrorDialog(
+        'Cannot regenerate: prompt not available',
+        t('common.error')
+      );
+      return;
+    }
+
+    // Create a new VideoGenNode with the same parameters
+    const newPosition = findNodePosition(
+      id,
+      VIDEO_GEN_NODE_WIDTH,
+      VIDEO_GEN_NODE_HEIGHT
+    );
+
+    const newNodeId = addNode(
+      CANVAS_NODE_TYPES.videoGen,
+      newPosition,
+      {
+        prompt: data.prompt,
+        model: data.model || DEFAULT_VIDEO_MODEL_ID,
+        duration: data.duration || 5,
+        aspectRatio: data.aspectRatio || '16:9',
+        enableAudio: data.enableAudio ?? true,
+        seed: data.seed ?? null,
+        extraParams: data.extraParams || {},
+        videoUrl: null,
+        thumbnailUrl: null,
+        referenceImageUrl: null,
+        startFrameUrl: data.startFrameUrl ?? null,
+        endFrameUrl: data.endFrameUrl ?? null,
+        isGenerating: false,
+        generationStartedAt: null,
+        generationDurationMs: 0,
+        jobId: null,
+        errorMessage: null,
+      }
+    );
+
+    // Connect the same source nodes to the new VideoGenNode
+    sourceNodeIds.forEach((sourceId) => {
+      addEdge(sourceId, newNodeId);
+    });
+
+    console.log('[VideoResultNode] Created new VideoGenNode:', newNodeId);
+  };
+
   return (
     <div
       className={`
@@ -108,8 +178,8 @@ function VideoResultNodeComponent({
         />
       </div>
 
-      {/* Download Controls */}
-      <div className="mt-2 flex shrink-0 flex-col gap-2">
+      {/* Download and Regenerate Controls */}
+      <div className="mt-2 flex shrink-0 items-center gap-2">
         {videoDownloadPresetPaths.length > 0 ? (
           <div className="flex items-center gap-1.5 flex-wrap">
             {videoDownloadPresetPaths.slice(0, 3).map((path, index) => (
@@ -146,6 +216,22 @@ function VideoResultNodeComponent({
           >
             <Download className="h-4 w-4" />
             {downloading ? 'Downloading...' : t('node.videoGen.download')}
+          </UiButton>
+        )}
+
+        {/* Regenerate Button - aligned to right */}
+        {data.prompt && (
+          <UiButton
+            onClick={(e) => {
+              e.stopPropagation();
+              handleRegenerate();
+            }}
+            variant="muted"
+            size="sm"
+            className="ml-auto text-xs"
+          >
+            <RefreshCw className="h-3 w-3" />
+            {t('node.videoGen.regenerate')}
           </UiButton>
         )}
       </div>

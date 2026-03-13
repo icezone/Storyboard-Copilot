@@ -157,6 +157,7 @@
       "endFrame": "End Frame",
       "optional": "optional",
       "generate": "Generate",
+      "regenerate": "Regenerate",
       "generating": "Generating video...",
       "completed": "Video completed",
       "failed": "Generation failed",

@@ -157,6 +157,7 @@
       "endFrame": "结束帧",
       "optional": "可选",
       "generate": "生成",
+      "regenerate": "重新生成",
       "generating": "生成视频中...",
       "completed": "视频生成完成",
       "failed": "生成失败",

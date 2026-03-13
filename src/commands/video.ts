@@ -235,16 +235,41 @@ export async function downloadVideoToDirectory(
     throw new Error('当前不是 Tauri 容器环境，请使用 `npm run tauri dev` 启动');
   }
 
-  // For now, use cache_video and then save to target path
-  // In future, this could be a dedicated Tauri command
-  const tempVideoId = `download_${Date.now()}`;
-  const cachedPath = await cacheVideoLocally(videoUrl, tempVideoId);
+  try {
+    // First cache the video
+    const tempVideoId = `download_${Date.now()}`;
+    const cachedPath = await cacheVideoLocally(videoUrl, tempVideoId);
 
-  // TODO: Implement actual file copy to targetPath and reveal logic
-  console.info('[Video] Video downloaded (cached)', {
-    cachedPath,
-    targetPath,
-  });
+    console.info('[Video] Video cached, copying to target', {
+      cachedPath,
+      targetPath,
+    });
+
+    // Copy the cached file to the target path
+    await invoke('copy_file_to_path', {
+      sourcePath: cachedPath,
+      targetPath: targetPath,
+    });
+
+    console.info('[Video] Video copied successfully', {
+      targetPath,
+    });
+
+    // Reveal in file explorer if requested
+    if (revealInExplorer) {
+      await invoke('reveal_in_file_explorer', {
+        path: targetPath,
+      });
+      console.info('[Video] Revealed in file explorer');
+    }
+  } catch (error) {
+    const normalizedError = normalizeInvokeError(error);
+    console.error('[Video] download_video failed', {
+      error,
+      normalizedError,
+    });
+    throw createErrorWithDetails(normalizedError.message, normalizedError.details);
+  }
 }
 
 export async function getVideoCacheStats(): Promise<VideoCacheStats> {

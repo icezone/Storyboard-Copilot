@@ -264,7 +264,7 @@ const videoGenNodeDefinition: CanvasNodeDefinition<import('./canvasNodes').Video
     sourceHandle: true,
     targetHandle: true,
     connectMenu: {
-      fromSource: false,
+      fromSource: true,
       fromTarget: false,
     },
   },

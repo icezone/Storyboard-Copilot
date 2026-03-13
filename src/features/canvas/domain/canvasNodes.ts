@@ -166,8 +166,14 @@ export interface VideoResultNodeData extends NodeDisplayData {
   videoUrl: string;
   thumbnailUrl?: string | null;
   prompt?: string;
+  model?: string;
   duration?: number;
   aspectRatio?: string;
+  enableAudio?: boolean;
+  seed?: number | null;
+  extraParams?: Record<string, unknown>;
+  startFrameUrl?: string | null;
+  endFrameUrl?: string | null;
 }
 
 export type CanvasNodeData =

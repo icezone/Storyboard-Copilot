@@ -8,7 +8,7 @@ import {
   useRef,
 } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import { Sparkles, RefreshCw } from 'lucide-react';
+import { Sparkles, RefreshCw, Download, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -63,14 +63,12 @@ interface PickerAnchor {
 
 const PICKER_FALLBACK_ANCHOR: PickerAnchor = { left: 8, top: 8 };
 const PICKER_Y_OFFSET_PX = 8;
-const VIDEO_GEN_NODE_MIN_WIDTH = 420;
-const VIDEO_GEN_NODE_MIN_HEIGHT = 350;
-const VIDEO_GEN_NODE_MAX_WIDTH = 1400;
-const VIDEO_GEN_NODE_MAX_HEIGHT = 1000;
-const VIDEO_GEN_NODE_DEFAULT_WIDTH = 520;
-const VIDEO_GEN_NODE_DEFAULT_HEIGHT = 480;
-const VIDEO_RESULT_NODE_WIDTH = 400;
-const VIDEO_RESULT_NODE_HEIGHT = 320;
+const VIDEO_GEN_NODE_MIN_WIDTH = 520;
+const VIDEO_GEN_NODE_MIN_HEIGHT = 480;
+const VIDEO_GEN_NODE_MAX_WIDTH = 1600;
+const VIDEO_GEN_NODE_MAX_HEIGHT = 1400;
+const VIDEO_GEN_NODE_DEFAULT_WIDTH = 1040;
+const VIDEO_GEN_NODE_DEFAULT_HEIGHT = 1100;
 const POLL_INTERVAL_MS = 3000;
 
 function getTextareaCaretOffset(
@@ -127,6 +125,9 @@ function VideoGenNodeComponent({
   const [pickerAnchor, setPickerAnchor] = useState<PickerAnchor>(PICKER_FALLBACK_ANCHOR);
   const [pickerActiveIndex, setPickerActiveIndex] = useState(0);
   const [pollingProgress, setPollingProgress] = useState(0);
+  const [downloading, setDownloading] = useState(false);
+  const [promptCollapsed, setPromptCollapsed] = useState(false);
+  const [frameSelectionCollapsed, setFrameSelectionCollapsed] = useState(false);
 
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const promptHighlightRef = useRef<HTMLDivElement>(null);
@@ -136,10 +137,8 @@ function VideoGenNodeComponent({
   const edges = useCanvasStore((state) => state.edges);
   const updateNodeData = useCanvasStore((state) => state.updateNodeData);
   const setSelectedNode = useCanvasStore((state) => state.setSelectedNode);
-  const addNode = useCanvasStore((state) => state.addNode);
-  const addEdge = useCanvasStore((state) => state.addEdge);
-  const findNodePosition = useCanvasStore((state) => state.findNodePosition);
   const providerApiKey = useSettingsStore((state) => state.apiKeys['kling']);
+  const videoDownloadPresetPaths = useSettingsStore((state) => state.videoDownloadPresetPaths);
 
   const videoModels = useMemo(() => listVideoModels(), []);
   const selectedModel = useMemo(
@@ -176,6 +175,14 @@ function VideoGenNodeComponent({
     Math.round(height ?? VIDEO_GEN_NODE_DEFAULT_HEIGHT)
   );
 
+  // Auto-collapse sections when video generation starts or completes
+  useEffect(() => {
+    if (data.isGenerating || data.videoUrl) {
+      setPromptCollapsed(true);
+      setFrameSelectionCollapsed(true);
+    }
+  }, [data.isGenerating, data.videoUrl]);
+
   // Cleanup polling on unmount or when generation completes
   useEffect(() => {
     return () => {
@@ -204,6 +211,14 @@ function VideoGenNodeComponent({
           data.model
         );
 
+        console.log('[VideoGenNode] Poll status:', {
+          jobId: data.jobId,
+          state: status.state,
+          videoUrl: status.videoUrl,
+          progress: status.progress,
+          errorMessage: status.errorMessage,
+        });
+
         if (status.state === 'completed' && status.videoUrl) {
           if (pollIntervalRef.current) {
             clearInterval(pollIntervalRef.current);
@@ -224,24 +239,6 @@ function VideoGenNodeComponent({
           });
           setError(null);
           setPollingProgress(0);
-
-          // Create VideoResultNode downstream
-          const resultNodePosition = findNodePosition(
-            id,
-            VIDEO_RESULT_NODE_WIDTH,
-            VIDEO_RESULT_NODE_HEIGHT
-          );
-          const resultNodeId = addNode(
-            CANVAS_NODE_TYPES.videoResult,
-            resultNodePosition,
-            {
-              videoUrl: status.videoUrl,
-              prompt: data.prompt,
-              duration: data.duration,
-              aspectRatio: data.aspectRatio,
-            }
-          );
-          addEdge(id, resultNodeId);
         } else if (status.state === 'failed') {
           if (pollIntervalRef.current) {
             clearInterval(pollIntervalRef.current);
@@ -311,9 +308,6 @@ function VideoGenNodeComponent({
     selectedModel.expectedDurationMs,
     id,
     updateNodeData,
-    addNode,
-    addEdge,
-    findNodePosition,
     t,
   ]);
 
@@ -507,6 +501,8 @@ function VideoGenNodeComponent({
       generationStartedAt,
       generationDurationMs: 0,
       errorMessage: null,
+      jobId: null,
+      videoUrl: null,
     });
 
     try {
@@ -562,6 +558,55 @@ function VideoGenNodeComponent({
     });
   }, [id, updateNodeData]);
 
+  const handleDownload = useCallback(async (targetPath?: string) => {
+    if (!data.videoUrl || downloading) return;
+
+    setDownloading(true);
+    try {
+      const url = data.videoUrl;
+      const filename = `video_${Date.now()}.mp4`;
+
+      if (targetPath) {
+        // Download to specific path via Tauri
+        const { downloadVideoToDirectory } = await import('@/commands/video');
+        const { join } = await import('@tauri-apps/api/path');
+        const fullPath = await join(targetPath, filename);
+        await downloadVideoToDirectory(url, fullPath, true);
+        console.log('[VideoGenNode] Downloaded to:', fullPath);
+      } else {
+        // Browser download using fetch + blob (works with CORS)
+        console.log('[VideoGenNode] Starting browser download:', url);
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch video: ${response.statusText}`);
+        }
+
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        // Clean up blob URL after a delay
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+
+        console.log('[VideoGenNode] Browser download initiated');
+      }
+    } catch (error) {
+      console.error('[VideoGenNode] Failed to download video:', error);
+      void showErrorDialog(
+        error instanceof Error ? error.message : 'Failed to download video',
+        t('common.error')
+      );
+    } finally {
+      setDownloading(false);
+    }
+  }, [data.videoUrl, downloading, t]);
+
   const syncPromptHighlightScroll = () => {
     if (!promptRef.current || !promptHighlightRef.current) {
       return;
@@ -594,7 +639,7 @@ function VideoGenNodeComponent({
   return (
     <div
       className={`
-        flex flex-col rounded-xl border-2 bg-surface-dark shadow-xl transition-all p-3
+        flex flex-col rounded-xl border-2 bg-surface-dark shadow-xl transition-all p-3 overflow-hidden
         ${
           selected
             ? 'border-accent shadow-accent/30'
@@ -612,88 +657,113 @@ function VideoGenNodeComponent({
         onTitleChange={(nextTitle) => updateNodeData(id, { displayName: nextTitle })}
       />
 
-      {/* Prompt Input */}
-      <div className="relative min-h-0 flex-1 rounded-lg border border-[rgba(255,255,255,0.1)] bg-bg-dark/45 p-2">
-        <div className="relative h-full min-h-0">
-          <div
-            ref={promptHighlightRef}
-            aria-hidden="true"
-            className="ui-scrollbar pointer-events-none absolute inset-0 overflow-y-auto overflow-x-hidden text-sm leading-6 text-text-dark"
-            style={{ scrollbarGutter: 'stable' }}
-          >
-            <div className="min-h-full whitespace-pre-wrap break-words px-1 py-0.5">
-              {renderPromptWithHighlights(promptDraft, incomingImages.length)}
-            </div>
-          </div>
-
-          <textarea
-            ref={promptRef}
-            value={promptDraft}
-            onChange={(event) => {
-              const nextValue = event.target.value;
-              setPromptDraft(nextValue);
-              commitPromptDraft(nextValue);
+      {/* Content Wrapper */}
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col gap-2">
+        {/* Prompt Input */}
+        <div className="rounded-lg border border-[rgba(255,255,255,0.1)] bg-bg-dark/45 shrink-0">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setPromptCollapsed(!promptCollapsed);
             }}
-            onKeyDown={handlePromptKeyDown}
-            onScroll={syncPromptHighlightScroll}
-            onMouseDown={(event) => event.stopPropagation()}
-            placeholder={t('node.videoGen.promptPlaceholder')}
-            className="ui-scrollbar nodrag nowheel relative z-10 h-full w-full resize-none overflow-y-auto overflow-x-hidden border-none bg-transparent px-1 py-0.5 text-sm leading-6 text-transparent caret-text-dark outline-none placeholder:text-text-muted/80 focus:border-transparent whitespace-pre-wrap break-words"
-            style={{ scrollbarGutter: 'stable' }}
-          />
+            className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-text-muted hover:text-text-dark transition-colors"
+          >
+            <span>{t('node.videoGen.promptPlaceholder')}</span>
+            {promptCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+          </button>
+          {!promptCollapsed && (
+            <div className="relative p-2 border-t border-[rgba(255,255,255,0.1)]" style={{ height: '150px' }}>
+              <div className="relative h-full overflow-hidden">
+                <div
+                  ref={promptHighlightRef}
+                  aria-hidden="true"
+                  className="ui-scrollbar pointer-events-none absolute inset-0 overflow-y-auto overflow-x-hidden text-sm leading-6 text-text-dark"
+                  style={{ scrollbarGutter: 'stable' }}
+                >
+                  <div className="min-h-full whitespace-pre-wrap break-words px-1 py-0.5">
+                    {renderPromptWithHighlights(promptDraft, incomingImages.length)}
+                  </div>
+                </div>
+
+                <textarea
+                  ref={promptRef}
+                  value={promptDraft}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    setPromptDraft(nextValue);
+                    commitPromptDraft(nextValue);
+                  }}
+                  onKeyDown={handlePromptKeyDown}
+                  onScroll={syncPromptHighlightScroll}
+                  onMouseDown={(event) => event.stopPropagation()}
+                  placeholder={t('node.videoGen.promptPlaceholder')}
+                  className="ui-scrollbar nodrag nowheel relative z-10 h-full w-full resize-none overflow-y-auto overflow-x-hidden border-none bg-transparent px-1 py-0.5 text-sm leading-6 text-transparent caret-text-dark outline-none placeholder:text-text-muted/80 focus:border-transparent whitespace-pre-wrap break-words"
+                  style={{ scrollbarGutter: 'stable' }}
+                />
+
+                {showImagePicker && incomingImageItems.length > 0 && (
+                  <div
+                    className="nowheel absolute z-30 w-[120px] overflow-hidden rounded-xl border border-[rgba(255,255,255,0.16)] bg-surface-dark shadow-xl"
+                    style={{ left: pickerAnchor.left, top: pickerAnchor.top }}
+                    onMouseDown={(event) => event.stopPropagation()}
+                    onWheelCapture={(event) => event.stopPropagation()}
+                  >
+                    <div
+                      className="ui-scrollbar nowheel max-h-[180px] overflow-y-auto"
+                      onWheelCapture={(event) => event.stopPropagation()}
+                    >
+                      {incomingImageItems.map((item, index) => (
+                        <button
+                          key={`${item.imageUrl}-${index}`}
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            insertImageReference(index);
+                          }}
+                          onMouseEnter={() => setPickerActiveIndex(index)}
+                          className={`flex w-full items-center gap-2 border border-transparent bg-bg-dark/70 px-2 py-2 text-left text-sm text-text-dark transition-colors hover:border-[rgba(255,255,255,0.18)] ${
+                            pickerActiveIndex === index
+                              ? 'border-[rgba(255,255,255,0.24)] bg-bg-dark'
+                              : ''
+                          }`}
+                        >
+                          <img
+                            src={item.displayUrl}
+                            alt={item.label}
+                            className="h-8 w-8 rounded object-cover"
+                            draggable={false}
+                          />
+                          <span>{item.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
-        {showImagePicker && incomingImageItems.length > 0 && (
-          <div
-            className="nowheel absolute z-30 w-[120px] overflow-hidden rounded-xl border border-[rgba(255,255,255,0.16)] bg-surface-dark shadow-xl"
-            style={{ left: pickerAnchor.left, top: pickerAnchor.top }}
-            onMouseDown={(event) => event.stopPropagation()}
-            onWheelCapture={(event) => event.stopPropagation()}
-          >
-            <div
-              className="ui-scrollbar nowheel max-h-[180px] overflow-y-auto"
-              onWheelCapture={(event) => event.stopPropagation()}
+        {/* Frame Selection */}
+        {incomingImages.length > 0 && !data.isGenerating && (
+          <div className="rounded-lg border border-[rgba(255,255,255,0.1)] bg-bg-dark/45 shrink-0">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setFrameSelectionCollapsed(!frameSelectionCollapsed);
+              }}
+              className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-text-muted hover:text-text-dark transition-colors"
             >
-              {incomingImageItems.map((item, index) => (
-                <button
-                  key={`${item.imageUrl}-${index}`}
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    insertImageReference(index);
-                  }}
-                  onMouseEnter={() => setPickerActiveIndex(index)}
-                  className={`flex w-full items-center gap-2 border border-transparent bg-bg-dark/70 px-2 py-2 text-left text-sm text-text-dark transition-colors hover:border-[rgba(255,255,255,0.18)] ${
-                    pickerActiveIndex === index
-                      ? 'border-[rgba(255,255,255,0.24)] bg-bg-dark'
-                      : ''
-                  }`}
-                >
-                  <img
-                    src={item.displayUrl}
-                    alt={item.label}
-                    className="h-8 w-8 rounded object-cover"
-                    draggable={false}
-                  />
-                  <span>{item.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Frame Selection */}
-      {incomingImages.length > 0 && !data.isGenerating && (
-        <div className="mt-2 rounded-lg border border-[rgba(255,255,255,0.1)] bg-bg-dark/45 p-3">
-          <div className="mb-2 text-xs font-medium text-text-muted">
-            {t('node.videoGen.frameSelection')}
-          </div>
-          <div className="flex gap-3">
+              <span>{t('node.videoGen.frameSelection')}</span>
+              {frameSelectionCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+            </button>
+            {!frameSelectionCollapsed && (
+              <div className="p-3 overflow-y-auto ui-scrollbar border-t border-[rgba(255,255,255,0.1)]" style={{ maxHeight: '250px' }}>
+                <div className="flex gap-4">
             {/* Start Frame */}
             <div className="flex-1">
-              <div className="mb-1.5 text-xs text-text-muted">{t('node.videoGen.startFrame')}</div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="mb-2 text-xs text-text-muted">{t('node.videoGen.startFrame')}</div>
+              <div className="grid grid-cols-1 gap-3">
                 {incomingImageItems.map((item, index) => {
                   const isSelected = data.startFrameUrl === item.imageUrl;
                   return (
@@ -734,13 +804,13 @@ function VideoGenNodeComponent({
 
             {/* End Frame */}
             <div className="flex-1">
-              <div className="mb-1.5 text-xs text-text-muted">
+              <div className="mb-2 text-xs text-text-muted">
                 {t('node.videoGen.endFrame')}
                 <span className="ml-1 text-[10px] text-text-muted/60">
                   ({t('node.videoGen.optional')})
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-3">
                 {incomingImageItems.map((item, index) => {
                   const isSelected = data.endFrameUrl === item.imageUrl;
                   return (
@@ -778,37 +848,84 @@ function VideoGenNodeComponent({
                 })}
               </div>
             </div>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Video Preview */}
-      {data.videoUrl && !data.isGenerating && (
-        <div className="mt-2 rounded-lg border border-[rgba(255,255,255,0.1)] bg-bg-dark/45 p-2">
-          <video
-            src={data.videoUrl}
-            controls
-            className="h-auto w-full rounded"
-            style={{ maxHeight: '240px' }}
-          />
-        </div>
-      )}
-
-      {/* Generation Progress */}
-      {data.isGenerating && (
-        <div className="mt-2 rounded-lg border border-[rgba(255,255,255,0.1)] bg-bg-dark/45 p-3">
-          <div className="mb-2 flex items-center justify-between text-sm text-text-muted">
-            <span>{t('node.videoGen.generating')}</span>
-            <span>{Math.round(pollingProgress)}%</span>
-          </div>
-          <div className="h-2 overflow-hidden rounded-full bg-bg-dark">
-            <div
-              className="h-full bg-accent transition-all duration-300"
-              style={{ width: `${pollingProgress}%` }}
+        {/* Video Preview */}
+        {data.videoUrl && !data.isGenerating && (
+          <div className="rounded-lg border border-[rgba(255,255,255,0.1)] bg-bg-dark/45 p-2 flex items-center justify-center flex-1 min-h-0">
+            <video
+              src={data.videoUrl}
+              controls
+              className="max-h-full max-w-full rounded object-contain"
             />
           </div>
-        </div>
-      )}
+        )}
+
+        {/* Download Controls */}
+        {data.videoUrl && !data.isGenerating && (
+          <div className="flex shrink-0 items-center gap-2">
+          <div className="ml-auto" />
+          {videoDownloadPresetPaths.length > 0 ? (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {videoDownloadPresetPaths.slice(0, 3).map((path, index) => (
+                <UiButton
+                  key={index}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void handleDownload(path);
+                  }}
+                  variant="muted"
+                  size="sm"
+                  className="text-xs"
+                  disabled={downloading}
+                >
+                  <Download className="h-3 w-3" />
+                  {downloading ? 'Downloading...' : path.split(/[/\\]/).pop() || `Path ${index + 1}`}
+                </UiButton>
+              ))}
+              {videoDownloadPresetPaths.length > 3 && (
+                <span className="text-xs text-text-muted">
+                  +{videoDownloadPresetPaths.length - 3} more
+                </span>
+              )}
+            </div>
+          ) : (
+            <UiButton
+              onClick={(e) => {
+                e.stopPropagation();
+                void handleDownload();
+              }}
+              variant="primary"
+              size="sm"
+              disabled={downloading}
+            >
+              <Download className="h-4 w-4" />
+              {downloading ? 'Downloading...' : t('node.videoGen.download')}
+            </UiButton>
+          )}
+          </div>
+        )}
+
+        {/* Generation Progress */}
+        {data.isGenerating && (
+          <div className="mt-2 rounded-lg border border-[rgba(255,255,255,0.1)] bg-bg-dark/45 p-3 shrink-0">
+            <div className="mb-2 flex items-center justify-between text-sm text-text-muted">
+              <span>{t('node.videoGen.generating')}</span>
+              <span>{Math.round(pollingProgress)}%</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-bg-dark">
+              <div
+                className="h-full bg-accent transition-all duration-300"
+                style={{ width: `${pollingProgress}%` }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Controls */}
       <div className="mt-2 flex shrink-0 flex-col gap-3">
@@ -939,6 +1056,36 @@ function VideoGenNodeComponent({
                       <span className="text-text-muted/60">({param.description})</span>
                     )}
                   </label>
+                );
+              }
+
+              if (param.type === 'enum' && param.options) {
+                const enumValue = (data.extraParams?.[param.key] as string | undefined)
+                  ?? (typeof param.defaultValue === 'string' ? param.defaultValue : '');
+                return (
+                  <div key={param.key} className="flex items-center gap-1.5">
+                    <label className="text-text-muted">{param.label}:</label>
+                    <select
+                      value={enumValue}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        updateNodeData(id, {
+                          extraParams: {
+                            ...(data.extraParams ?? {}),
+                            [param.key]: e.target.value,
+                          },
+                        });
+                      }}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      className="nodrag flex-1 rounded border border-[rgba(255,255,255,0.15)] bg-bg-dark/60 px-2 py-1 text-xs text-text-dark focus:border-accent focus:outline-none cursor-pointer"
+                    >
+                      {param.options.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 );
               }
 

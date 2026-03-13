@@ -28,6 +28,17 @@ export const videoModel: VideoModelDefinition = {
   supportsImageToVideo: true,
   extraParamsSchema: [
     {
+      key: 'mode',
+      label: 'Mode',
+      type: 'enum',
+      description: 'Generation mode: standard or professional',
+      defaultValue: 'std',
+      options: [
+        { value: 'std', label: 'Standard' },
+        { value: 'pro', label: 'Professional' },
+      ],
+    },
+    {
       key: 'multi_shots',
       label: 'Multi Shots',
       type: 'boolean',
@@ -42,6 +53,7 @@ export const videoModel: VideoModelDefinition = {
     },
   ],
   defaultExtraParams: {
+    mode: 'std',
     multi_shots: false,
     kling_elements: [],
   },

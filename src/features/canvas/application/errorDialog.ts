@@ -32,10 +32,15 @@ function stringifyUnknown(value: unknown): string | undefined {
 export function resolveErrorContent(error: unknown, fallbackMessage: string): ResolvedErrorContent {
   if (error instanceof Error) {
     const errorWithDetails = error as ErrorWithDetails;
-    const details = stringifyUnknown(errorWithDetails.details);
+    const message = error.message?.trim() || fallbackMessage;
+    const detailsStr = stringifyUnknown(errorWithDetails.details);
+
+    // Only include details if they exist and are different from the message
+    const shouldIncludeDetails = detailsStr && detailsStr.trim() !== message;
+
     return {
-      message: error.message?.trim() || fallbackMessage,
-      details: details?.trim() || undefined,
+      message,
+      details: shouldIncludeDetails ? detailsStr.trim() : undefined,
     };
   }
 
@@ -43,7 +48,7 @@ export function resolveErrorContent(error: unknown, fallbackMessage: string): Re
     const content = error.trim();
     return {
       message: content || fallbackMessage,
-      details: content || undefined,
+      details: undefined, // Don't duplicate the message in details
     };
   }
 
@@ -55,10 +60,15 @@ export function resolveErrorContent(error: unknown, fallbackMessage: string): Re
       (typeof record.details === 'string' && record.details) ||
       (typeof record.msg === 'string' && record.msg) ||
       '';
-    const details = stringifyUnknown(record);
+    const message = candidate.trim() || fallbackMessage;
+    const detailsJson = stringifyUnknown(record);
+
+    // Only include details if they're different from the message
+    const shouldIncludeDetails = detailsJson && detailsJson.trim() !== message;
+
     return {
-      message: candidate.trim() || fallbackMessage,
-      details: details?.trim() || undefined,
+      message,
+      details: shouldIncludeDetails ? detailsJson.trim() : undefined,
     };
   }
 

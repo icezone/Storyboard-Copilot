@@ -191,6 +191,8 @@ pub fn run() {
             video::get_video_cache_stats,
             video::clear_video_cache,
             video::cleanup_old_videos,
+            video::copy_file_to_path,
+            video::reveal_in_file_explorer,
             project_state::list_project_summaries,
             project_state::get_project_record,
             project_state::upsert_project_record,

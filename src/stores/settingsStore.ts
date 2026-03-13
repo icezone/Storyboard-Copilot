@@ -281,7 +281,10 @@ export const useSettingsStore = create<SettingsState>()(
           if (error) {
             console.error('failed to hydrate settings storage', error);
           }
-          useSettingsStore.setState({ isHydrated: true });
+          // Use queueMicrotask to defer setState until after store initialization
+          queueMicrotask(() => {
+            useSettingsStore.setState({ isHydrated: true });
+          });
         };
       },
       migrate: (persistedState: unknown) => {

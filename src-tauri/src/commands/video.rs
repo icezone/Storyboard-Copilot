@@ -182,3 +182,57 @@ pub async fn cleanup_old_videos(app: AppHandle, max_age_days: u64) -> Result<usi
         .await
         .map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub async fn copy_file_to_path(source_path: String, target_path: String) -> Result<(), String> {
+    use std::path::PathBuf;
+
+    // Normalize paths to handle mixed separators
+    let source = PathBuf::from(&source_path);
+    let target = PathBuf::from(&target_path);
+
+    info!("[VideoCommand] Copying file from {:?} to {:?}", source, target);
+
+    // Ensure target directory exists
+    if let Some(parent) = target.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create target directory: {}", e))?;
+    }
+
+    std::fs::copy(&source, &target)
+        .map_err(|e| format!("Failed to copy file: {}", e))?;
+
+    info!("[VideoCommand] File copied successfully to {:?}", target);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn reveal_in_file_explorer(path: String) -> Result<(), String> {
+    info!("[VideoCommand] Revealing file in explorer: {}", path);
+
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .args(["/select,", &path])
+            .spawn()
+            .map_err(|e| format!("Failed to open explorer: {}", e))?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .args(["-R", &path])
+            .spawn()
+            .map_err(|e| format!("Failed to open finder: {}", e))?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(std::path::Path::new(&path).parent().unwrap_or(std::path::Path::new("/")))
+            .spawn()
+            .map_err(|e| format!("Failed to open file manager: {}", e))?;
+    }
+
+    Ok(())
+}
