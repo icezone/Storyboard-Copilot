@@ -174,7 +174,7 @@
       "noPrompt": "请输入提示词",
       "noApiKey": "请在设置中填写 API Key",
       "noApiKeyDetails": "视频生成需要 Kling 提供商的 API Key，请在设置中添加。",
-      "videoElements": "视频元素"
+      "klingElements": "Kling 元素"
     }
   },
   "videoErrors": {

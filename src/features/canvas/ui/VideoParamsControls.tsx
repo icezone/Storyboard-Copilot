@@ -42,8 +42,8 @@ interface VideoParamsControlsProps {
   onEnableAudioChange?: (enabled: boolean) => void;
   seed?: number | null;
   onSeedChange?: (seed: number | null) => void;
-  videoElements?: unknown[];
-  onVideoElementsChange?: (elements: unknown[]) => void;
+  klingElements?: unknown[];
+  onKlingElementsChange?: (elements: unknown[]) => void;
   showProviderName?: boolean;
   triggerSize?: 'md' | 'sm';
   chipClassName?: string;
@@ -100,8 +100,8 @@ export const VideoParamsControls = memo(({
   onEnableAudioChange,
   seed = null,
   onSeedChange,
-  videoElements = [],
-  onVideoElementsChange,
+  klingElements = [],
+  onKlingElementsChange,
   showProviderName = true,
   triggerSize = 'md',
   chipClassName = '',
@@ -135,7 +135,8 @@ export const VideoParamsControls = memo(({
 
   const extraParamSchema = selectedModel.extraParamsSchema ?? [];
   const extraParamSchemaWithoutElements = extraParamSchema.filter(def => def.key !== 'kling_elements');
-  const hasOtherParamsPanel = extraParamSchemaWithoutElements.length > 0 || selectedModel.supportsAudio || selectedModel.supportsSeed;
+  const hasKlingElements = incomingImages.length > 0 && extraParamSchema.some(def => def.key === 'kling_elements');
+  const hasOtherParamsPanel = extraParamSchemaWithoutElements.length > 0 || selectedModel.supportsAudio || selectedModel.supportsSeed || hasKlingElements;
 
   // Translate extra param labels and descriptions
   const translateParam = (key: string, type: 'label' | 'description' | 'option', value?: string): string => {
@@ -558,18 +559,6 @@ export const VideoParamsControls = memo(({
                 })}
               </div>
             </div>
-
-            {/* Video Elements */}
-            {incomingImages.length > 0 && (
-              <div className="mt-3">
-                <div className="mb-2 text-xs text-text-muted">{t('node.videoGen.videoElements')}</div>
-                <KlingElementsEditor
-                  elements={(videoElements as any[]) ?? []}
-                  incomingImages={incomingImages}
-                  onChange={(elements) => onVideoElementsChange?.(elements)}
-                />
-              </div>
-            )}
           </UiPanel>
         </div>,
         document.body
@@ -726,6 +715,18 @@ export const VideoParamsControls = memo(({
                   </div>
                 );
               })}
+
+              {/* Kling Elements */}
+              {hasKlingElements && (
+                <div className="rounded-lg border border-[rgba(255,255,255,0.08)] bg-bg-dark/65 px-3 py-2">
+                  <div className="mb-2 text-xs font-medium text-text-dark">{t('node.videoGen.klingElements')}</div>
+                  <KlingElementsEditor
+                    elements={(klingElements as any[]) ?? []}
+                    incomingImages={incomingImages}
+                    onChange={(elements) => onKlingElementsChange?.(elements)}
+                  />
+                </div>
+              )}
             </div>
           </UiPanel>
         </div>,

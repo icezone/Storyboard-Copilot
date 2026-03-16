@@ -963,8 +963,8 @@ function VideoGenNodeComponent({
             onSeedChange={(seed) => {
               updateNodeData(id, { seed });
             }}
-            videoElements={data.extraParams?.['kling_elements'] as unknown[]}
-            onVideoElementsChange={(elements) => {
+            klingElements={data.extraParams?.['kling_elements'] as unknown[]}
+            onKlingElementsChange={(elements) => {
               updateNodeData(id, {
                 extraParams: {
                   ...(data.extraParams ?? {}),
@@ -1009,12 +1009,12 @@ function VideoGenNodeComponent({
           )}
         </div>
 
-        {/* Video Elements Display */}
+        {/* Kling Elements Display */}
         {data.extraParams?.['kling_elements'] &&
          Array.isArray(data.extraParams['kling_elements']) &&
          data.extraParams['kling_elements'].length > 0 ? (
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-xs text-text-muted">{t('node.videoGen.videoElements')}:</span>
+            <span className="text-xs text-text-muted">{t('node.videoGen.klingElements')}:</span>
             {(data.extraParams['kling_elements'] as Array<{ name: string; description?: string }>)
               .filter((element) => element && typeof element === 'object' && 'name' in element)
               .map((element, index) => (

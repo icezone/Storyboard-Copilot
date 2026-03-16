@@ -30,12 +30,12 @@ The video generation feature is fully implemented and tested. Users can generate
 2. Select parameters:
    - Duration: 3s, 5s, 10s, or 15s
    - Aspect Ratio: 16:9, 9:16, or 1:1
-   - **Video Elements:** Define named elements from connected images (e.g., @element_dog)
 3. Additional options (Other Params panel):
    - Mode: Standard or Professional
    - Multi Shots: Enable multiple camera angles
    - Enable Audio: Generate with audio
    - Seed: For reproducible results
+   - **Kling Elements:** Define named elements from connected images (e.g., @element_dog)
 4. Optionally select start/end frames
 5. Click "Generate"
 6. Wait for progress bar to complete

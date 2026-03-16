@@ -102,7 +102,7 @@ export const KlingElementsEditor = memo(({ elements, incomingImages, onChange }:
       {typeof document !== 'undefined' && (
         <UiModal
           isOpen={isModalOpen}
-          title={t('node.videoGen.videoElements')}
+          title={t('node.videoGen.klingElements')}
           onClose={() => setIsModalOpen(false)}
           widthClassName="w-[600px]"
           containerClassName="z-[120]"
