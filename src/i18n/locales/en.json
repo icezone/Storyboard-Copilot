@@ -84,7 +84,13 @@
     "thinkingLevelDesc": "Only applies to fal Nano Banana 2. High thinking adds extra cost.",
     "thinkingDisabled": "Off",
     "thinkingMinimal": "Standard",
-    "thinkingHigh": "High"
+    "thinkingHigh": "High",
+    "mode": "Mode",
+    "modeDescription": "Generation mode: standard or professional",
+    "modeStandard": "Standard",
+    "modeProfessional": "Professional",
+    "multiShots": "Multi Shots",
+    "multiShotsDescription": "Enable multiple camera angles"
   },
   "node": {
     "menu": {

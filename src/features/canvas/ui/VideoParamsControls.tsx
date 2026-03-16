@@ -137,6 +137,24 @@ export const VideoParamsControls = memo(({
   const extraParamSchemaWithoutElements = extraParamSchema.filter(def => def.key !== 'kling_elements');
   const hasOtherParamsPanel = extraParamSchemaWithoutElements.length > 0 || selectedModel.supportsAudio || selectedModel.supportsSeed;
 
+  // Translate extra param labels and descriptions
+  const translateParam = (key: string, type: 'label' | 'description' | 'option', value?: string): string => {
+    // For mode parameter
+    if (key === 'mode') {
+      if (type === 'label') return t('modelParams.mode');
+      if (type === 'description') return t('modelParams.modeDescription');
+      if (type === 'option' && value === 'std') return t('modelParams.modeStandard');
+      if (type === 'option' && value === 'pro') return t('modelParams.modeProfessional');
+    }
+    // For multi_shots parameter
+    if (key === 'multi_shots') {
+      if (type === 'label') return t('modelParams.multiShots');
+      if (type === 'description') return t('modelParams.multiShotsDescription');
+    }
+    // Fallback to original value (for any unknown parameters)
+    return value ?? '';
+  };
+
   const selectedProvider = useMemo(
     () => getModelProvider(selectedModel.providerId),
     [selectedModel.providerId]
@@ -613,7 +631,9 @@ export const VideoParamsControls = memo(({
                     {definition.type === 'enum' && definition.options && (
                       <>
                         <div className="flex items-center justify-between gap-2 mb-1">
-                          <label className="text-xs font-medium text-text-dark">{definition.label}</label>
+                          <label className="text-xs font-medium text-text-dark">
+                            {translateParam(definition.key, 'label') || definition.label}
+                          </label>
                           <UiSelect
                             value={String(resolvedValue ?? '')}
                             onChange={(event) => onExtraParamChange?.(definition.key, event.target.value)}
@@ -621,14 +641,14 @@ export const VideoParamsControls = memo(({
                           >
                             {definition.options.map((option) => (
                               <option key={option.value} value={option.value}>
-                                {option.label}
+                                {translateParam(definition.key, 'option', option.value) || option.label}
                               </option>
                             ))}
                           </UiSelect>
                         </div>
                         {definition.description && (
                           <div className="text-[10px] leading-3 text-text-muted">
-                            {definition.description}
+                            {translateParam(definition.key, 'description') || definition.description}
                           </div>
                         )}
                       </>
@@ -637,7 +657,9 @@ export const VideoParamsControls = memo(({
                     {definition.type === 'boolean' && (
                       <>
                         <div className="flex items-center justify-between gap-2 mb-1">
-                          <label className="text-xs font-medium text-text-dark">{definition.label}</label>
+                          <label className="text-xs font-medium text-text-dark">
+                            {translateParam(definition.key, 'label') || definition.label}
+                          </label>
                           <UiCheckbox
                             checked={Boolean(resolvedValue)}
                             onCheckedChange={(checked) =>
@@ -647,7 +669,7 @@ export const VideoParamsControls = memo(({
                         </div>
                         {definition.description && (
                           <div className="text-[10px] leading-3 text-text-muted">
-                            {definition.description}
+                            {translateParam(definition.key, 'description') || definition.description}
                           </div>
                         )}
                       </>
@@ -656,7 +678,9 @@ export const VideoParamsControls = memo(({
                     {definition.type === 'number' && (
                       <>
                         <div className="flex items-center justify-between gap-2 mb-1">
-                          <label className="text-xs font-medium text-text-dark">{definition.label}</label>
+                          <label className="text-xs font-medium text-text-dark">
+                            {translateParam(definition.key, 'label') || definition.label}
+                          </label>
                           <input
                             type="number"
                             min={definition.min}
@@ -671,7 +695,7 @@ export const VideoParamsControls = memo(({
                         </div>
                         {definition.description && (
                           <div className="text-[10px] leading-3 text-text-muted">
-                            {definition.description}
+                            {translateParam(definition.key, 'description') || definition.description}
                           </div>
                         )}
                       </>
@@ -680,7 +704,9 @@ export const VideoParamsControls = memo(({
                     {definition.type === 'string' && (
                       <>
                         <div className="flex items-center justify-between gap-2 mb-1">
-                          <label className="text-xs font-medium text-text-dark">{definition.label}</label>
+                          <label className="text-xs font-medium text-text-dark">
+                            {translateParam(definition.key, 'label') || definition.label}
+                          </label>
                           <input
                             type="text"
                             value={typeof resolvedValue === 'string' ? resolvedValue : ''}
@@ -692,7 +718,7 @@ export const VideoParamsControls = memo(({
                         </div>
                         {definition.description && (
                           <div className="text-[10px] leading-3 text-text-muted">
-                            {definition.description}
+                            {translateParam(definition.key, 'description') || definition.description}
                           </div>
                         )}
                       </>

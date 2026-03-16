@@ -84,7 +84,13 @@
     "thinkingLevelDesc": "仅对 fal 的 Nano Banana 2 生效；高思考会额外增加费用。",
     "thinkingDisabled": "关闭",
     "thinkingMinimal": "标准",
-    "thinkingHigh": "高"
+    "thinkingHigh": "高",
+    "mode": "模式",
+    "modeDescription": "生成模式：标准或专业",
+    "modeStandard": "标准",
+    "modeProfessional": "专业",
+    "multiShots": "多镜头",
+    "multiShotsDescription": "启用多个摄像机角度"
   },
   "node": {
     "menu": {
