@@ -136,7 +136,7 @@ function VideoGenNodeComponent({
   const edges = useCanvasStore((state) => state.edges);
   const updateNodeData = useCanvasStore((state) => state.updateNodeData);
   const setSelectedNode = useCanvasStore((state) => state.setSelectedNode);
-  const providerApiKey = useSettingsStore((state) => state.apiKeys['kling']);
+  const apiKeys = useSettingsStore((state) => state.apiKeys);
   const videoDownloadPresetPaths = useSettingsStore((state) => state.videoDownloadPresetPaths);
 
   const videoModels = useMemo(() => listVideoModels(), []);
@@ -483,6 +483,7 @@ function VideoGenNodeComponent({
       return;
     }
 
+    const providerApiKey = apiKeys[selectedModel.providerId];
     if (!providerApiKey) {
       setError(t('node.videoGen.noApiKey'));
       void showErrorDialog(
@@ -535,7 +536,7 @@ function VideoGenNodeComponent({
     }
   }, [
     promptDraft,
-    providerApiKey,
+    apiKeys,
     incomingImages,
     selectedModel,
     data.model,
@@ -1038,13 +1039,13 @@ function VideoGenNodeComponent({
         type="target"
         id="target"
         position={Position.Left}
-        className="!h-2 !w-2 !border-surface-dark !bg-accent"
+        className="!h-3 !w-3 !border-surface-dark !bg-accent"
       />
       <Handle
         type="source"
         id="source"
         position={Position.Right}
-        className="!h-2 !w-2 !border-surface-dark !bg-accent"
+        className="!h-3 !w-3 !border-surface-dark !bg-accent"
       />
 
       <NodeResizeHandle

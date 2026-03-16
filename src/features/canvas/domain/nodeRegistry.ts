@@ -16,7 +16,7 @@ import {
 import { DEFAULT_NODE_DISPLAY_NAME } from './nodeDisplay';
 import { DEFAULT_IMAGE_MODEL_ID, DEFAULT_VIDEO_MODEL_ID } from '../models';
 
-export type MenuIconKey = 'upload' | 'sparkles' | 'layout' | 'text';
+export type MenuIconKey = 'upload' | 'sparkles' | 'layout' | 'text' | 'video';
 
 export interface CanvasNodeCapabilities {
   toolbar: boolean;
@@ -218,7 +218,7 @@ const storyboardSplitDefinition: CanvasNodeDefinition<StoryboardSplitNodeData> =
 const storyboardGenNodeDefinition: CanvasNodeDefinition<StoryboardGenNodeData> = {
   type: CANVAS_NODE_TYPES.storyboardGen,
   menuLabelKey: 'node.menu.storyboardGen',
-  menuIcon: 'sparkles',
+  menuIcon: 'layout',
   visibleInMenu: true,
   capabilities: {
     toolbar: true,
@@ -254,7 +254,7 @@ const storyboardGenNodeDefinition: CanvasNodeDefinition<StoryboardGenNodeData> =
 const videoGenNodeDefinition: CanvasNodeDefinition<import('./canvasNodes').VideoGenNodeData> = {
   type: CANVAS_NODE_TYPES.videoGen,
   menuLabelKey: 'node.menu.videoGeneration',
-  menuIcon: 'sparkles',
+  menuIcon: 'video',
   visibleInMenu: true,
   capabilities: {
     toolbar: true,

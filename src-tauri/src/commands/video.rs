@@ -65,6 +65,24 @@ pub async fn set_video_api_key(provider: String, api_key: String) -> Result<(), 
     info!("[VideoCommand] Setting API key for provider: {}", provider);
 
     let registry = get_registry();
+
+    // Handle KIE-based providers - map frontend provider IDs to backend providers
+    // Frontend uses 'kie', 'sora2', 'veo' but all three backend providers use KIE API
+    let kie_based_providers = vec!["kie", "sora2", "veo"];
+    if kie_based_providers.contains(&provider.as_str()) {
+        let backend_providers = vec!["kling", "sora2", "veo"];
+        for provider_name in backend_providers {
+            if let Some(resolved_provider) = registry.get_provider(provider_name) {
+                resolved_provider
+                    .set_api_key(api_key.clone())
+                    .await
+                    .map_err(|error| error.to_string())?;
+            }
+        }
+        return Ok(());
+    }
+
+    // Handle other individual providers
     let resolved_provider = registry
         .get_provider(provider.as_str())
         .ok_or_else(|| format!("Unknown video provider: {}", provider))?;

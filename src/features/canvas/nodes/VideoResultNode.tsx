@@ -240,7 +240,7 @@ function VideoResultNodeComponent({
         type="target"
         id="target"
         position={Position.Left}
-        className="!h-2 !w-2 !border-surface-dark !bg-accent"
+        className="!h-3 !w-3 !border-surface-dark !bg-accent"
       />
     </div>
   );

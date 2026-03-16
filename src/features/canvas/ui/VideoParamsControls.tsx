@@ -28,7 +28,7 @@ interface IncomingImageItem {
 interface VideoParamsControlsProps {
   videoModels: VideoModelDefinition[];
   selectedModel: VideoModelDefinition;
-  selectedDuration: DurationOption;
+  selectedDuration: DurationOption | undefined;
   selectedAspectRatio: AspectRatioOption;
   durationOptions: DurationOption[];
   aspectRatioOptions: AspectRatioOption[];
@@ -383,7 +383,9 @@ export const VideoParamsControls = memo(({
         >
           <SlidersHorizontal className={paramsIconClassName} />
           <span className={paramsPrimaryTextClassName}>{selectedAspectRatio.label}</span>
-          <span className={paramsSecondaryTextClassName}>· {selectedDuration.label}</span>
+          {selectedDuration && (
+            <span className={paramsSecondaryTextClassName}>· {selectedDuration.label}</span>
+          )}
         </UiChipButton>
       </div>
 
@@ -428,13 +430,13 @@ export const VideoParamsControls = memo(({
                 <div className="mb-2 text-xs font-medium text-text-muted">
                   {t('modelParams.provider')}
                 </div>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {providerOptions.map((provider) => {
                     const active = provider.id === panelProviderId;
                     return (
                       <button
                         key={provider.id}
-                        className={`h-8 rounded-lg border px-2 text-xs transition-colors ${active
+                        className={`h-9 rounded-lg border px-3 text-xs transition-colors ${active
                           ? 'border-accent/50 bg-accent/15 text-text-dark'
                           : 'border-[rgba(255,255,255,0.12)] bg-bg-dark/65 text-text-muted hover:border-[rgba(255,255,255,0.2)]'
                           }`}
@@ -504,31 +506,33 @@ export const VideoParamsControls = memo(({
           style={buildPanelStyle(paramsPanelAnchor, paramsPanelAlign)}
         >
           <UiPanel className={paramsPanelClassName}>
-            <div>
-              <div className="mb-2 text-xs text-text-muted">{t('node.videoGen.duration')}</div>
-              <div className="grid grid-cols-4 gap-1 rounded-xl border border-[rgba(255,255,255,0.1)] bg-bg-dark/65 p-1">
-                {durationOptions.map((item) => {
-                  const active = item.value === selectedDuration.value;
-                  return (
-                    <button
-                      key={item.value}
-                      className={`h-8 rounded-lg text-sm transition-colors ${active
-                        ? 'bg-surface-dark text-text-dark'
-                        : 'text-text-muted hover:bg-bg-dark'
-                        }`}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onDurationChange(item.value);
-                      }}
-                    >
-                      {item.label}
-                    </button>
-                  );
-                })}
+            {durationOptions.length > 0 && (
+              <div>
+                <div className="mb-2 text-xs text-text-muted">{t('node.videoGen.duration')}</div>
+                <div className="grid grid-cols-4 gap-1 rounded-xl border border-[rgba(255,255,255,0.1)] bg-bg-dark/65 p-1">
+                  {durationOptions.map((item) => {
+                    const active = item.value === selectedDuration?.value;
+                    return (
+                      <button
+                        key={item.value}
+                        className={`h-8 rounded-lg text-sm transition-colors ${active
+                          ? 'bg-surface-dark text-text-dark'
+                          : 'text-text-muted hover:bg-bg-dark'
+                          }`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onDurationChange(item.value);
+                        }}
+                      >
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
 
-            <div className="mt-3">
+            <div className={durationOptions.length > 0 ? 'mt-3' : ''}>
               <div className="mb-2 text-xs text-text-muted">{t('modelParams.aspectRatio')}</div>
               <div className="grid grid-cols-5 gap-1 rounded-xl border border-[rgba(255,255,255,0.1)] bg-bg-dark/65 p-1">
                 {aspectRatioOptions.map((item) => {
@@ -598,12 +602,14 @@ export const VideoParamsControls = memo(({
                         const value = event.target.value;
                         onSeedChange?.(value ? Number(value) : null);
                       }}
-                      placeholder="123"
+                      placeholder="50000"
+                      min="10000"
+                      max="99999"
                       className="h-7 w-24 rounded border border-[rgba(255,255,255,0.15)] bg-bg-dark/60 px-2 text-xs text-text-dark placeholder:text-text-muted/50 focus:border-accent/60 focus:outline-none"
                     />
                   </div>
                   <div className="text-[10px] leading-3 text-text-muted">
-                    {t('node.videoGen.seedDescription')}
+                    {t('node.videoGen.seedDescription')} (10000-99999)
                   </div>
                 </div>
               )}

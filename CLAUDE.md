@@ -247,6 +247,35 @@ npm run release -- patch --notes-file docs/releases/v0.1.12.md
 - LRU 缓存管理（5GB 限制，30 天保留期）
 - 预设下载路径（快速保存到常用目录）
 
+**已接入 Provider（基于 KIE API）：**
+
+所有三个 Provider 共享 KIE API 基础设施（`src-tauri/src/ai/video/providers/kie_common/`）：
+- 统一 API Key 管理（`KieApiClient`）
+- 共享图片上传逻辑（支持 file://、http://、data: URLs、base64）
+- 共享状态轮询逻辑（`/api/v1/jobs/recordInfo`）
+
+**Kling 3.0 (KIE API):**
+- 模型：`kling/kling-3.0`
+- 时长：3s、5s、10s、15s
+- 宽高比：16:9、9:16、1:1
+- 特性：multi_shots、kling_elements（高级元素控制）
+- 端点：`/api/v1/jobs/createTask`
+
+**Sora2 (KIE API):**
+- 模型：`sora2/sora-2-image-to-video`、`sora2/sora-2-pro-image-to-video`
+- 时长：10s、15s（后端映射为 n_frames：10→10 帧，15→15 帧）
+- 宽高比：16:9（landscape）、9:16（portrait）
+- 端点：`/api/v1/jobs/createTask`
+- 参数映射：duration（秒）→ n_frames，aspect_ratio → "portrait"/"landscape"
+
+**Veo 3.1 (KIE API):**
+- 模型：`veo/veo3`（Quality）、`veo/veo3_fast`（Fast）
+- 时长：系统决定（无时长控制）
+- 宽高比：16:9、9:16、Auto
+- 特性：支持 seed（10000-99999 范围，自动 clamp）
+- 端点：`/api/v1/veo/generate`（提交）、`/api/v1/jobs/recordInfo`（轮询）
+- 固定参数：`generationType: "FIRST_AND_LAST_FRAMES_2_VIDEO"`
+
 ### 8.2 新工具接入
 
 1. 在 `tools/types.ts` 声明能力（如 editor kind）。
