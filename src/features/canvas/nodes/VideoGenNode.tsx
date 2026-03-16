@@ -45,7 +45,6 @@ import {
   NODE_CONTROL_PRIMARY_BUTTON_CLASS,
 } from '@/features/canvas/ui/nodeControlStyles';
 import { VideoParamsControls } from '@/features/canvas/ui/VideoParamsControls';
-import { KlingElementsEditor } from '@/features/canvas/ui/KlingElementsEditor';
 import { UiButton } from '@/components/ui';
 import { useCanvasStore } from '@/stores/canvasStore';
 import { useSettingsStore } from '@/stores/settingsStore';
@@ -946,6 +945,33 @@ function VideoGenNodeComponent({
             onAspectRatioChange={(aspectRatio) => {
               updateNodeData(id, { aspectRatio });
             }}
+            extraParams={data.extraParams}
+            onExtraParamChange={(key, value) => {
+              updateNodeData(id, {
+                extraParams: {
+                  ...(data.extraParams ?? {}),
+                  [key]: value,
+                },
+              });
+            }}
+            incomingImages={incomingImageItems}
+            enableAudio={data.enableAudio}
+            onEnableAudioChange={(enabled) => {
+              updateNodeData(id, { enableAudio: enabled });
+            }}
+            seed={data.seed}
+            onSeedChange={(seed) => {
+              updateNodeData(id, { seed });
+            }}
+            videoElements={data.extraParams?.['kling_elements'] as unknown[]}
+            onVideoElementsChange={(elements) => {
+              updateNodeData(id, {
+                extraParams: {
+                  ...(data.extraParams ?? {}),
+                  kling_elements: elements,
+                },
+              });
+            }}
             triggerSize="sm"
             chipClassName={NODE_CONTROL_CHIP_CLASS}
             modelChipClassName={NODE_CONTROL_MODEL_CHIP_CLASS}
@@ -983,159 +1009,25 @@ function VideoGenNodeComponent({
           )}
         </div>
 
-        {/* Audio Toggle and Seed (if supported) */}
-        {(selectedModel.supportsAudio || selectedModel.supportsSeed) && (
-          <div className="flex items-center gap-3 text-xs">
-            {selectedModel.supportsAudio && (
-              <label
-                className="flex items-center gap-1.5 text-text-muted cursor-pointer hover:text-text-dark transition-colors"
-                onMouseDown={(e) => e.stopPropagation()}
-              >
-                <input
-                  type="checkbox"
-                  checked={data.enableAudio}
-                  onChange={(e) => {
-                    e.stopPropagation();
-                    updateNodeData(id, { enableAudio: e.target.checked });
-                  }}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  className="rounded border-[rgba(255,255,255,0.2)] bg-bg-dark/45 text-accent focus:ring-accent focus:ring-offset-0"
-                />
-                <span>{t('node.videoGen.enableAudio')}</span>
-              </label>
-            )}
-
-            {selectedModel.supportsSeed && (
-              <div className="flex items-center gap-1.5">
-                <label className="text-text-muted">{t('node.videoGen.seed')}:</label>
-                <input
-                  type="number"
-                  value={data.seed ?? ''}
-                  onChange={(e) => {
-                    e.stopPropagation();
-                    const value = e.target.value;
-                    updateNodeData(id, { seed: value ? Number(value) : null });
-                  }}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  placeholder="123"
-                  className="nodrag w-20 rounded border border-[rgba(255,255,255,0.15)] bg-bg-dark/60 px-2 py-1 text-xs text-text-dark placeholder:text-text-muted/50 focus:border-accent focus:outline-none"
-                />
-              </div>
-            )}
+        {/* Video Elements Display */}
+        {data.extraParams?.['kling_elements'] &&
+         Array.isArray(data.extraParams['kling_elements']) &&
+         data.extraParams['kling_elements'].length > 0 ? (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs text-text-muted">{t('node.videoGen.videoElements')}:</span>
+            {(data.extraParams['kling_elements'] as Array<{ name: string; description?: string }>)
+              .filter((element) => element && typeof element === 'object' && 'name' in element)
+              .map((element, index) => (
+                <span
+                  key={index}
+                  className="inline-flex items-center rounded bg-accent/20 px-2 py-0.5 text-xs text-accent border border-accent/30"
+                >
+                  @{String(element.name)}
+                </span>
+              ))}
           </div>
-        )}
+        ) : null}
 
-        {/* Extra Parameters */}
-        {selectedModel.extraParamsSchema && selectedModel.extraParamsSchema.length > 0 && (
-          <div className="flex flex-col gap-2.5 text-xs">
-            {selectedModel.extraParamsSchema.map((param) => {
-              if (param.type === 'boolean') {
-                return (
-                  <label
-                    key={param.key}
-                    className="flex items-center gap-1.5 text-text-muted cursor-pointer hover:text-text-dark transition-colors"
-                    onMouseDown={(e) => e.stopPropagation()}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={Boolean(data.extraParams?.[param.key] ?? param.defaultValue)}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        updateNodeData(id, {
-                          extraParams: {
-                            ...(data.extraParams ?? {}),
-                            [param.key]: e.target.checked,
-                          },
-                        });
-                      }}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      className="rounded border-[rgba(255,255,255,0.2)] bg-bg-dark/45 text-accent focus:ring-accent focus:ring-offset-0"
-                    />
-                    <span>{param.label}</span>
-                    {param.description && (
-                      <span className="text-text-muted/60">({param.description})</span>
-                    )}
-                  </label>
-                );
-              }
-
-              if (param.type === 'enum' && param.options) {
-                const enumValue = (data.extraParams?.[param.key] as string | undefined)
-                  ?? (typeof param.defaultValue === 'string' ? param.defaultValue : '');
-                return (
-                  <div key={param.key} className="flex items-center gap-1.5">
-                    <label className="text-text-muted">{param.label}:</label>
-                    <select
-                      value={enumValue}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        updateNodeData(id, {
-                          extraParams: {
-                            ...(data.extraParams ?? {}),
-                            [param.key]: e.target.value,
-                          },
-                        });
-                      }}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      className="nodrag flex-1 rounded border border-[rgba(255,255,255,0.15)] bg-bg-dark/60 px-2 py-1 text-xs text-text-dark focus:border-accent focus:outline-none cursor-pointer"
-                    >
-                      {param.options.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                );
-              }
-
-              if (param.type === 'string') {
-                return (
-                  <div key={param.key} className="flex items-center gap-1.5">
-                    <label className="text-text-muted">{param.label}:</label>
-                    <input
-                      type="text"
-                      value={(data.extraParams?.[param.key] as string | undefined) ?? ''}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        updateNodeData(id, {
-                          extraParams: {
-                            ...(data.extraParams ?? {}),
-                            [param.key]: e.target.value,
-                          },
-                        });
-                      }}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      placeholder={param.description || ''}
-                      className="nodrag flex-1 rounded border border-[rgba(255,255,255,0.15)] bg-bg-dark/60 px-2 py-1 text-xs text-text-dark placeholder:text-text-muted/50 focus:border-accent focus:outline-none"
-                    />
-                  </div>
-                );
-              }
-
-              if (param.type === 'array' && param.key === 'kling_elements') {
-                return (
-                  <div key={param.key}>
-                    <KlingElementsEditor
-                      elements={(data.extraParams?.[param.key] as any[]) ?? []}
-                      incomingImages={incomingImageItems}
-                      onChange={(elements) => {
-                        updateNodeData(id, {
-                          extraParams: {
-                            ...(data.extraParams ?? {}),
-                            [param.key]: elements,
-                          },
-                        });
-                      }}
-                    />
-                  </div>
-                );
-              }
-
-              return null;
-            })}
-          </div>
-        )}
       </div>
 
       {error && (

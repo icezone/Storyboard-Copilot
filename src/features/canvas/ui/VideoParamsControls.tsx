@@ -4,7 +4,8 @@ import { SlidersHorizontal, Video } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { getModelProvider, type VideoModelDefinition } from '@/features/canvas/models';
-import { UiChipButton, UiModal, UiPanel, UiButton } from '@/components/ui';
+import { UiChipButton, UiModal, UiPanel, UiButton, UiSelect, UiCheckbox } from '@/components/ui';
+import { KlingElementsEditor } from '@/features/canvas/ui/KlingElementsEditor';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { openSettingsDialog } from '@/features/settings/settingsEvents';
 
@@ -18,6 +19,12 @@ interface AspectRatioOption {
   label: string;
 }
 
+interface IncomingImageItem {
+  imageUrl: string;
+  displayUrl: string;
+  label: string;
+}
+
 interface VideoParamsControlsProps {
   videoModels: VideoModelDefinition[];
   selectedModel: VideoModelDefinition;
@@ -28,6 +35,15 @@ interface VideoParamsControlsProps {
   onModelChange: (modelId: string) => void;
   onDurationChange: (duration: number) => void;
   onAspectRatioChange: (aspectRatio: string) => void;
+  extraParams?: Record<string, unknown>;
+  onExtraParamChange?: (key: string, value: boolean | number | string | unknown) => void;
+  incomingImages?: IncomingImageItem[];
+  enableAudio?: boolean;
+  onEnableAudioChange?: (enabled: boolean) => void;
+  seed?: number | null;
+  onSeedChange?: (seed: number | null) => void;
+  videoElements?: unknown[];
+  onVideoElementsChange?: (elements: unknown[]) => void;
   showProviderName?: boolean;
   triggerSize?: 'md' | 'sm';
   chipClassName?: string;
@@ -77,6 +93,15 @@ export const VideoParamsControls = memo(({
   onModelChange,
   onDurationChange,
   onAspectRatioChange,
+  extraParams,
+  onExtraParamChange,
+  incomingImages = [],
+  enableAudio = true,
+  onEnableAudioChange,
+  seed = null,
+  onSeedChange,
+  videoElements = [],
+  onVideoElementsChange,
   showProviderName = true,
   triggerSize = 'md',
   chipClassName = '',
@@ -91,18 +116,26 @@ export const VideoParamsControls = memo(({
   const containerRef = useRef<HTMLDivElement>(null);
   const modelTriggerRef = useRef<HTMLDivElement>(null);
   const paramsTriggerRef = useRef<HTMLDivElement>(null);
+  const otherParamsTriggerRef = useRef<HTMLDivElement>(null);
   const modelPanelRef = useRef<HTMLDivElement>(null);
   const paramsPanelRef = useRef<HTMLDivElement>(null);
-  const [openPanel, setOpenPanel] = useState<'model' | 'params' | null>(null);
-  const [renderPanel, setRenderPanel] = useState<'model' | 'params' | null>(null);
+  const otherParamsPanelRef = useRef<HTMLDivElement>(null);
+  const [openPanel, setOpenPanel] = useState<'model' | 'params' | 'otherParams' | null>(null);
+  const [renderPanel, setRenderPanel] = useState<'model' | 'params' | 'otherParams' | null>(null);
   const [isPanelVisible, setIsPanelVisible] = useState(false);
   const [modelPanelAnchor, setModelPanelAnchor] = useState<PanelAnchor | null>(null);
   const [paramsPanelAnchor, setParamsPanelAnchor] = useState<PanelAnchor | null>(null);
+  const [otherParamsPanelAnchor, setOtherParamsPanelAnchor] = useState<PanelAnchor | null>(null);
   const [modelAnchorBaseWidth, setModelAnchorBaseWidth] = useState<number | null>(null);
   const [paramsAnchorBaseWidth, setParamsAnchorBaseWidth] = useState<number | null>(null);
+  const [otherParamsAnchorBaseWidth, setOtherParamsAnchorBaseWidth] = useState<number | null>(null);
   const [panelProviderId, setPanelProviderId] = useState(selectedModel.providerId);
   const [missingKeyProviderName, setMissingKeyProviderName] = useState<string | null>(null);
   const apiKeys = useSettingsStore((state) => state.apiKeys);
+
+  const extraParamSchema = selectedModel.extraParamsSchema ?? [];
+  const extraParamSchemaWithoutElements = extraParamSchema.filter(def => def.key !== 'kling_elements');
+  const hasOtherParamsPanel = extraParamSchemaWithoutElements.length > 0 || selectedModel.supportsAudio || selectedModel.supportsSeed;
 
   const selectedProvider = useMemo(
     () => getModelProvider(selectedModel.providerId),
@@ -229,6 +262,16 @@ export const VideoParamsControls = memo(({
       if (paramsPanelRef.current?.contains(target)) {
         return;
       }
+      if (otherParamsPanelRef.current?.contains(target)) {
+        return;
+      }
+      // Check if click is inside a UiSelect dropdown menu
+      if (target instanceof Element) {
+        const selectMenu = target.closest('[id^="ui-select-"]');
+        if (selectMenu) {
+          return;
+        }
+      }
       setOpenPanel(null);
     };
 
@@ -324,6 +367,34 @@ export const VideoParamsControls = memo(({
           <span className={paramsSecondaryTextClassName}>· {selectedDuration.label}</span>
         </UiChipButton>
       </div>
+
+      {hasOtherParamsPanel && (
+        <div ref={otherParamsTriggerRef} className="relative flex">
+          <UiChipButton
+            active={openPanel === 'otherParams'}
+            className={`${chipClassName} w-auto shrink-0 justify-center`}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (openPanel === 'otherParams') {
+                setOpenPanel(null);
+                return;
+              }
+              const triggerWidth = otherParamsTriggerRef.current?.getBoundingClientRect().width ?? null;
+              const nextBaseWidth = otherParamsAnchorBaseWidth ?? triggerWidth;
+              if (otherParamsAnchorBaseWidth == null && triggerWidth) {
+                setOtherParamsAnchorBaseWidth(triggerWidth);
+              }
+              setOtherParamsPanelAnchor(
+                getPanelAnchor(otherParamsTriggerRef.current, 'center', nextBaseWidth)
+              );
+              setOpenPanel('otherParams');
+            }}
+          >
+            <SlidersHorizontal className={paramsIconClassName} />
+            <span className={paramsPrimaryTextClassName}>{t('modelParams.otherParams')}</span>
+          </UiChipButton>
+        </div>
+      )}
 
       {typeof document !== 'undefined' && renderPanel === 'model' && createPortal(
         <div
@@ -468,6 +539,167 @@ export const VideoParamsControls = memo(({
                   );
                 })}
               </div>
+            </div>
+
+            {/* Video Elements */}
+            {incomingImages.length > 0 && (
+              <div className="mt-3">
+                <div className="mb-2 text-xs text-text-muted">{t('node.videoGen.videoElements')}</div>
+                <KlingElementsEditor
+                  elements={(videoElements as any[]) ?? []}
+                  incomingImages={incomingImages}
+                  onChange={(elements) => onVideoElementsChange?.(elements)}
+                />
+              </div>
+            )}
+          </UiPanel>
+        </div>,
+        document.body
+      )}
+
+      {typeof document !== 'undefined' && renderPanel === 'otherParams' && createPortal(
+        <div
+          ref={otherParamsPanelRef}
+          className={`fixed z-[80] transition-opacity duration-200 ease-out ${isPanelVisible ? 'opacity-100' : 'pointer-events-none opacity-0'
+            }`}
+          style={buildPanelStyle(otherParamsPanelAnchor, 'center')}
+        >
+          <UiPanel className="w-[320px] p-3">
+            <div className="space-y-2">
+              {/* Audio Toggle */}
+              {selectedModel.supportsAudio && (
+                <div className="rounded-lg border border-[rgba(255,255,255,0.08)] bg-bg-dark/65 px-3 py-2">
+                  <label className="flex cursor-pointer items-center justify-between gap-2">
+                    <span className="text-xs font-medium text-text-dark">{t('node.videoGen.enableAudio')}</span>
+                    <UiCheckbox
+                      checked={enableAudio}
+                      onCheckedChange={(checked) => onEnableAudioChange?.(checked)}
+                    />
+                  </label>
+                </div>
+              )}
+
+              {/* Seed Input */}
+              {selectedModel.supportsSeed && (
+                <div className="rounded-lg border border-[rgba(255,255,255,0.08)] bg-bg-dark/65 px-3 py-2">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <label className="text-xs font-medium text-text-dark">{t('node.videoGen.seed')}</label>
+                    <input
+                      type="number"
+                      value={seed ?? ''}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        onSeedChange?.(value ? Number(value) : null);
+                      }}
+                      placeholder="123"
+                      className="h-7 w-24 rounded border border-[rgba(255,255,255,0.15)] bg-bg-dark/60 px-2 text-xs text-text-dark placeholder:text-text-muted/50 focus:border-accent/60 focus:outline-none"
+                    />
+                  </div>
+                  <div className="text-[10px] leading-3 text-text-muted">
+                    {t('node.videoGen.seedDescription')}
+                  </div>
+                </div>
+              )}
+
+              {/* Extra Parameters */}
+              {extraParamSchemaWithoutElements.map((definition) => {
+                const resolvedValue = extraParams?.[definition.key] ?? definition.defaultValue;
+
+                return (
+                  <div
+                    key={definition.key}
+                    className="rounded-lg border border-[rgba(255,255,255,0.08)] bg-bg-dark/65 px-3 py-2"
+                  >
+                    {definition.type === 'enum' && definition.options && (
+                      <>
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <label className="text-xs font-medium text-text-dark">{definition.label}</label>
+                          <UiSelect
+                            value={String(resolvedValue ?? '')}
+                            onChange={(event) => onExtraParamChange?.(definition.key, event.target.value)}
+                            className="h-7 w-32 text-xs"
+                          >
+                            {definition.options.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </UiSelect>
+                        </div>
+                        {definition.description && (
+                          <div className="text-[10px] leading-3 text-text-muted">
+                            {definition.description}
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {definition.type === 'boolean' && (
+                      <>
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <label className="text-xs font-medium text-text-dark">{definition.label}</label>
+                          <UiCheckbox
+                            checked={Boolean(resolvedValue)}
+                            onCheckedChange={(checked) =>
+                              onExtraParamChange?.(definition.key, checked)
+                            }
+                          />
+                        </div>
+                        {definition.description && (
+                          <div className="text-[10px] leading-3 text-text-muted">
+                            {definition.description}
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {definition.type === 'number' && (
+                      <>
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <label className="text-xs font-medium text-text-dark">{definition.label}</label>
+                          <input
+                            type="number"
+                            min={definition.min}
+                            max={definition.max}
+                            step={definition.step}
+                            value={typeof resolvedValue === 'number' ? String(resolvedValue) : ''}
+                            onChange={(event) =>
+                              onExtraParamChange?.(definition.key, Number(event.target.value))
+                            }
+                            className="h-7 w-24 rounded border border-[rgba(255,255,255,0.15)] bg-bg-dark/60 px-2 text-xs text-text-dark placeholder:text-text-muted/50 focus:border-accent/60 focus:outline-none"
+                          />
+                        </div>
+                        {definition.description && (
+                          <div className="text-[10px] leading-3 text-text-muted">
+                            {definition.description}
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {definition.type === 'string' && (
+                      <>
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <label className="text-xs font-medium text-text-dark">{definition.label}</label>
+                          <input
+                            type="text"
+                            value={typeof resolvedValue === 'string' ? resolvedValue : ''}
+                            onChange={(event) =>
+                              onExtraParamChange?.(definition.key, event.target.value)
+                            }
+                            className="h-7 flex-1 rounded border border-[rgba(255,255,255,0.15)] bg-bg-dark/60 px-2 text-xs text-text-dark placeholder:text-text-muted/50 focus:border-accent/60 focus:outline-none"
+                          />
+                        </div>
+                        {definition.description && (
+                          <div className="text-[10px] leading-3 text-text-muted">
+                            {definition.description}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </UiPanel>
         </div>,

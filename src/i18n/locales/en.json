@@ -152,6 +152,7 @@
       "aspectRatio": "Aspect Ratio",
       "enableAudio": "Enable Audio",
       "seed": "Seed",
+      "seedDescription": "Use a seed number for reproducible results",
       "frameSelection": "Frame Selection",
       "startFrame": "Start Frame",
       "endFrame": "End Frame",
@@ -166,7 +167,8 @@
       "noVideo": "No video generated yet",
       "noPrompt": "Please enter a prompt",
       "noApiKey": "Please set API key in Settings",
-      "noApiKeyDetails": "Kling provider API key is required for video generation. Please add it in Settings."
+      "noApiKeyDetails": "Kling provider API key is required for video generation. Please add it in Settings.",
+      "videoElements": "Video Elements"
     }
   },
   "videoErrors": {

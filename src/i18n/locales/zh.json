@@ -152,6 +152,7 @@
       "aspectRatio": "宽高比",
       "enableAudio": "启用音频",
       "seed": "种子",
+      "seedDescription": "使用种子数字以获得可重现的结果",
       "frameSelection": "帧选择",
       "startFrame": "起始帧",
       "endFrame": "结束帧",
@@ -166,7 +167,8 @@
       "noVideo": "暂无生成视频",
       "noPrompt": "请输入提示词",
       "noApiKey": "请在设置中填写 API Key",
-      "noApiKeyDetails": "视频生成需要 Kling 提供商的 API Key，请在设置中添加。"
+      "noApiKeyDetails": "视频生成需要 Kling 提供商的 API Key，请在设置中添加。",
+      "videoElements": "视频元素"
     }
   },
   "videoErrors": {

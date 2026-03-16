@@ -47,7 +47,7 @@ export const videoModel: VideoModelDefinition = {
     },
     {
       key: 'kling_elements',
-      label: 'Kling Elements',
+      label: 'Video Elements',
       type: 'array',
       description: 'Define elements that can be referenced in prompts using @element_name',
     },

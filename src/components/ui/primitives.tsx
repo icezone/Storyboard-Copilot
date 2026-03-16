@@ -167,8 +167,16 @@ export const UiCheckbox = forwardRef<HTMLButtonElement, UiCheckboxProps>(
       className={`inline-flex h-5 w-5 items-center justify-center rounded border transition-colors ${
         checked
           ? 'border-accent/60 bg-accent/20 text-accent'
-          : 'border-[rgba(255,255,255,0.2)] bg-bg-dark/60 text-transparent hover:border-[rgba(255,255,255,0.32)]'
+          : 'text-transparent hover:border-[var(--ui-border-strong)]'
       } ${className}`}
+      style={
+        checked
+          ? undefined
+          : {
+              background: 'var(--ui-surface-field)',
+              borderColor: 'var(--ui-border-soft)',
+            }
+      }
       onClick={(event) => {
         onClick?.(event);
         if (!event.defaultPrevented) {

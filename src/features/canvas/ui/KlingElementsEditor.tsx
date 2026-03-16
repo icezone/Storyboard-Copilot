@@ -84,25 +84,25 @@ export const KlingElementsEditor = memo(({ elements, incomingImages, onChange }:
 
   return (
     <>
-      <button
+      <UiButton
         onClick={(e) => {
           e.stopPropagation();
           handleOpenModal();
         }}
-        className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-dark transition-colors"
+        variant={elements.length > 0 ? "muted" : "primary"}
+        size="sm"
+        className="w-full text-xs"
       >
-        <Sparkles className="h-3 w-3" />
-        <span>
-          {elements.length > 0
-            ? `${elements.length} Element${elements.length > 1 ? 's' : ''}`
-            : 'Add Elements'}
-        </span>
-      </button>
+        <Sparkles className="h-3.5 w-3.5" />
+        {elements.length > 0
+          ? `${elements.length} Element${elements.length > 1 ? 's' : ''} Selected`
+          : 'Add Elements'}
+      </UiButton>
 
       {typeof document !== 'undefined' && (
         <UiModal
           isOpen={isModalOpen}
-          title="Kling Elements"
+          title={t('node.videoGen.videoElements')}
           onClose={() => setIsModalOpen(false)}
           widthClassName="w-[600px]"
           containerClassName="z-[120]"
@@ -117,7 +117,7 @@ export const KlingElementsEditor = memo(({ elements, incomingImages, onChange }:
             </>
           )}
         >
-          <div className="max-h-[500px] overflow-y-auto space-y-4">
+          <div className="ui-scrollbar max-h-[500px] overflow-y-auto space-y-4">
             {incomingImages.length === 0 ? (
               <div className="text-center py-8 text-text-muted">
                 <p className="text-sm">No images available</p>
