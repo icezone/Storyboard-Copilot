@@ -24,7 +24,7 @@ struct Sora2CreateTaskInput {
     #[serde(skip_serializing_if = "Option::is_none")]
     aspect_ratio: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    n_frames: Option<u32>,
+    n_frames: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -93,8 +93,8 @@ impl Sora2Provider {
 
         let model = self.normalize_model(&request.model);
 
-        // Map duration to n_frames (1:1 ratio)
-        let n_frames = request.duration.map(|d| self.map_duration_to_frames(d));
+        // Map duration to n_frames (1:1 ratio) - API expects string
+        let n_frames = request.duration.map(|d| self.map_duration_to_frames(d).to_string());
 
         // Map aspect ratio to portrait/landscape
         let aspect_ratio = request
