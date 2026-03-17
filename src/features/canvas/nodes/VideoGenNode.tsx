@@ -8,7 +8,7 @@ import {
   useRef,
 } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import { Sparkles, RefreshCw, Download, ChevronDown, ChevronUp } from 'lucide-react';
+import { Sparkles, RefreshCw, Download, ChevronDown, ChevronUp, ImagePlus, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -24,6 +24,7 @@ import {
 } from '@/features/canvas/application/canvasServices';
 import { resolveErrorContent, showErrorDialog } from '@/features/canvas/application/errorDialog';
 import {
+  prepareNodeImageFromFile,
   resolveImageDisplayUrl,
 } from '@/features/canvas/application/imageData';
 import {
@@ -126,7 +127,6 @@ function VideoGenNodeComponent({
   const [pollingProgress, setPollingProgress] = useState(0);
   const [downloading, setDownloading] = useState(false);
   const [promptCollapsed, setPromptCollapsed] = useState(false);
-  const [frameSelectionCollapsed, setFrameSelectionCollapsed] = useState(false);
 
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const promptHighlightRef = useRef<HTMLDivElement>(null);
@@ -136,6 +136,13 @@ function VideoGenNodeComponent({
   const edges = useCanvasStore((state) => state.edges);
   const updateNodeData = useCanvasStore((state) => state.updateNodeData);
   const setSelectedNode = useCanvasStore((state) => state.setSelectedNode);
+  const addNode = useCanvasStore((state) => state.addNode);
+  const addEdge = useCanvasStore((state) => state.addEdge);
+
+  const frameUploadRef = useRef<HTMLInputElement>(null);
+  const [frameUploadTarget, setFrameUploadTarget] = useState<'start' | 'end' | null>(null);
+  const [startFramePickerOpen, setStartFramePickerOpen] = useState(false);
+  const [endFramePickerOpen, setEndFramePickerOpen] = useState(false);
   const apiKeys = useSettingsStore((state) => state.apiKeys);
   const videoDownloadPresetPaths = useSettingsStore((state) => state.videoDownloadPresetPaths);
 
@@ -161,8 +168,8 @@ function VideoGenNodeComponent({
   );
 
   const resolvedTitle = useMemo(
-    () => resolveNodeDisplayName(CANVAS_NODE_TYPES.videoGen, data),
-    [data]
+    () => resolveNodeDisplayName(CANVAS_NODE_TYPES.videoGen, data, t),
+    [data, t]
   );
 
   const resolvedWidth = Math.max(
@@ -178,7 +185,6 @@ function VideoGenNodeComponent({
   useEffect(() => {
     if (data.isGenerating || data.videoUrl) {
       setPromptCollapsed(true);
-      setFrameSelectionCollapsed(true);
     }
   }, [data.isGenerating, data.videoUrl]);
 
@@ -558,6 +564,42 @@ function VideoGenNodeComponent({
     });
   }, [id, updateNodeData]);
 
+  const handleFrameUpload = useCallback(
+    async (file: File, target: 'start' | 'end') => {
+      try {
+        const prepared = await prepareNodeImageFromFile(file);
+        const thisNode = nodes.find((n) => n.id === id);
+        const uploadPos = thisNode
+          ? { x: thisNode.position.x - 320, y: thisNode.position.y + (target === 'end' ? 260 : 0) }
+          : { x: 0, y: 0 };
+        const uploadNodeId = addNode(CANVAS_NODE_TYPES.upload, uploadPos, {
+          imageUrl: prepared.imageUrl,
+          previewImageUrl: prepared.previewImageUrl,
+          aspectRatio: prepared.aspectRatio || '1:1',
+          sourceFileName: file.name,
+        });
+        addEdge(uploadNodeId, id);
+        updateNodeData(id, {
+          [target === 'start' ? 'startFrameUrl' : 'endFrameUrl']: prepared.imageUrl,
+        });
+      } catch {
+        setError(t('node.videoGen.uploadFailed'));
+      }
+    },
+    [id, nodes, addNode, addEdge, updateNodeData, t],
+  );
+
+  const handleFrameFileChange = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file || !file.type.startsWith('image/') || !frameUploadTarget) return;
+      await handleFrameUpload(file, frameUploadTarget);
+      setFrameUploadTarget(null);
+      if (frameUploadRef.current) frameUploadRef.current.value = '';
+    },
+    [frameUploadTarget, handleFrameUpload],
+  );
+
   const handleDownload = useCallback(async (targetPath?: string) => {
     if (!data.videoUrl || downloading) return;
 
@@ -643,7 +685,7 @@ function VideoGenNodeComponent({
         ${
           selected
             ? 'border-accent shadow-accent/30'
-            : 'border-[rgba(15,23,42,0.22)] hover:border-[rgba(15,23,42,0.34)] dark:border-[rgba(255,255,255,0.22)] dark:hover:border-[rgba(255,255,255,0.34)]'
+            : 'border-[rgba(15,23,42,0.45)] hover:border-[rgba(15,23,42,0.58)] dark:border-[rgba(255,255,255,0.22)] dark:hover:border-[rgba(255,255,255,0.34)]'
         }
       `}
       style={{ width: `${resolvedWidth}px`, height: `${resolvedHeight}px` }}
@@ -660,7 +702,7 @@ function VideoGenNodeComponent({
       {/* Content Wrapper */}
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col gap-2">
         {/* Prompt Input */}
-        <div className="rounded-lg border border-[rgba(255,255,255,0.1)] bg-bg-dark/45 shrink-0">
+        <div className="rounded-lg border border-[rgba(15,23,42,0.15)] dark:border-[rgba(255,255,255,0.1)] bg-bg-dark/45 shrink-0">
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -672,7 +714,7 @@ function VideoGenNodeComponent({
             {promptCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
           </button>
           {!promptCollapsed && (
-            <div className="relative p-2 border-t border-[rgba(255,255,255,0.1)]" style={{ height: '150px' }}>
+            <div className="relative p-2 border-t border-[rgba(15,23,42,0.15)] dark:border-[rgba(255,255,255,0.1)]" style={{ height: '150px' }}>
               <div className="relative h-full overflow-hidden">
                 <div
                   ref={promptHighlightRef}
@@ -703,7 +745,7 @@ function VideoGenNodeComponent({
 
                 {showImagePicker && incomingImageItems.length > 0 && (
                   <div
-                    className="nowheel absolute z-30 w-[120px] overflow-hidden rounded-xl border border-[rgba(255,255,255,0.16)] bg-surface-dark shadow-xl"
+                    className="nowheel absolute z-30 w-[120px] overflow-hidden rounded-xl border border-[rgba(15,23,42,0.15)] bg-surface-dark shadow-xl dark:border-[rgba(255,255,255,0.16)]"
                     style={{ left: pickerAnchor.left, top: pickerAnchor.top }}
                     onMouseDown={(event) => event.stopPropagation()}
                     onWheelCapture={(event) => event.stopPropagation()}
@@ -721,9 +763,9 @@ function VideoGenNodeComponent({
                             insertImageReference(index);
                           }}
                           onMouseEnter={() => setPickerActiveIndex(index)}
-                          className={`flex w-full items-center gap-2 border border-transparent bg-bg-dark/70 px-2 py-2 text-left text-sm text-text-dark transition-colors hover:border-[rgba(255,255,255,0.18)] ${
+                          className={`flex w-full items-center gap-2 border border-transparent bg-bg-dark/70 px-2 py-2 text-left text-sm text-text-dark transition-colors hover:border-[rgba(15,23,42,0.15)] dark:hover:border-[rgba(255,255,255,0.18)] ${
                             pickerActiveIndex === index
-                              ? 'border-[rgba(255,255,255,0.24)] bg-bg-dark'
+                              ? 'border-[rgba(15,23,42,0.2)] bg-bg-dark dark:border-[rgba(255,255,255,0.24)]'
                               : ''
                           }`}
                         >
@@ -745,118 +787,172 @@ function VideoGenNodeComponent({
         </div>
 
         {/* Frame Selection */}
-        {incomingImages.length > 0 && !data.isGenerating && (
-          <div className="rounded-lg border border-[rgba(255,255,255,0.1)] bg-bg-dark/45 shrink-0">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setFrameSelectionCollapsed(!frameSelectionCollapsed);
-              }}
-              className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-text-muted hover:text-text-dark transition-colors"
-            >
-              <span>{t('node.videoGen.frameSelection')}</span>
-              {frameSelectionCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-            </button>
-            {!frameSelectionCollapsed && (
-              <div className="p-3 overflow-y-auto ui-scrollbar border-t border-[rgba(255,255,255,0.1)]" style={{ maxHeight: '250px' }}>
-                <div className="flex gap-4">
-            {/* Start Frame */}
-            <div className="flex-1">
-              <div className="mb-2 text-xs text-text-muted">{t('node.videoGen.startFrame')}</div>
-              <div className="grid grid-cols-1 gap-3">
-                {incomingImageItems.map((item, index) => {
-                  const isSelected = data.startFrameUrl === item.imageUrl;
-                  return (
+        {!data.isGenerating && (
+          <div className="flex shrink-0 gap-3 px-1">
+            {/* Start Frame Slot */}
+            <div className="relative flex-1">
+              <div className="mb-1.5 text-xs text-text-muted">{t('node.videoGen.startFrame')}</div>
+              {data.startFrameUrl ? (
+                <div className="relative aspect-video overflow-hidden rounded-lg border-2 border-accent ring-2 ring-accent/30">
+                  <img
+                    src={resolveImageDisplayUrl(data.startFrameUrl)}
+                    alt={t('node.videoGen.startFrame')}
+                    className="h-full w-full object-cover"
+                  />
+                  <button
+                    className="absolute right-1 top-1 rounded-full bg-black/60 p-0.5 text-white transition-colors hover:bg-black/80"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      updateNodeData(id, { startFrameUrl: null });
+                    }}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  className="nodrag flex aspect-video w-full items-center justify-center rounded-lg border-2 border-dashed border-[rgba(15,23,42,0.25)] transition-colors hover:border-[rgba(15,23,42,0.4)] hover:bg-[rgba(15,23,42,0.04)] dark:border-[rgba(255,255,255,0.15)] dark:hover:border-[rgba(255,255,255,0.3)] dark:hover:bg-[rgba(255,255,255,0.04)]"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (incomingImageItems.length > 0) {
+                      setStartFramePickerOpen(!startFramePickerOpen);
+                      setEndFramePickerOpen(false);
+                    } else {
+                      setFrameUploadTarget('start');
+                      frameUploadRef.current?.click();
+                    }
+                  }}
+                >
+                  <ImagePlus className="h-5 w-5 text-text-muted/60" />
+                </button>
+              )}
+              {startFramePickerOpen && incomingImageItems.length > 0 && !data.startFrameUrl && (
+                <div
+                  className="nowheel absolute left-0 top-full z-30 mt-1 w-full overflow-hidden rounded-xl border border-[rgba(15,23,42,0.15)] bg-surface-dark shadow-xl dark:border-[rgba(255,255,255,0.16)]"
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
+                  <div className="ui-scrollbar nowheel max-h-[200px] overflow-y-auto p-1.5">
+                    {incomingImageItems.map((item, index) => (
+                      <button
+                        key={`start-pick-${index}`}
+                        className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs text-text-dark transition-colors hover:bg-[rgba(15,23,42,0.06)] dark:hover:bg-[rgba(255,255,255,0.08)]"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateNodeData(id, { startFrameUrl: item.imageUrl });
+                          setStartFramePickerOpen(false);
+                        }}
+                      >
+                        <img src={item.displayUrl} alt={item.label} className="h-8 w-8 rounded object-cover" draggable={false} />
+                        <span>{item.label}</span>
+                      </button>
+                    ))}
                     <button
-                      key={`start-${index}`}
+                      className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs text-text-muted transition-colors hover:bg-[rgba(15,23,42,0.06)] dark:hover:bg-[rgba(255,255,255,0.08)]"
                       onClick={(e) => {
                         e.stopPropagation();
-                        updateNodeData(id, {
-                          startFrameUrl: isSelected ? null : item.imageUrl,
-                        });
+                        setStartFramePickerOpen(false);
+                        setFrameUploadTarget('start');
+                        frameUploadRef.current?.click();
                       }}
-                      className={`relative aspect-video rounded-lg border-2 overflow-hidden transition-all ${
-                        isSelected
-                          ? 'border-accent ring-2 ring-accent/30'
-                          : 'border-[rgba(255,255,255,0.15)] hover:border-[rgba(255,255,255,0.3)]'
-                      }`}
                     >
-                      <img
-                        src={item.displayUrl}
-                        alt={item.label}
-                        className="h-full w-full object-cover"
-                      />
-                      {isSelected && (
-                        <div className="absolute inset-0 bg-accent/20 flex items-center justify-center">
-                          <div className="h-5 w-5 rounded-full bg-accent flex items-center justify-center">
-                            <span className="text-white text-xs font-bold">✓</span>
-                          </div>
-                        </div>
-                      )}
-                      <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1 py-0.5 text-[10px] text-white">
-                        {item.label}
-                      </div>
+                      <ImagePlus className="h-4 w-4" />
+                      <span>{t('node.videoGen.uploadImage')}</span>
                     </button>
-                  );
-                })}
-              </div>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* End Frame */}
-            <div className="flex-1">
-              <div className="mb-2 text-xs text-text-muted">
+            {/* End Frame Slot */}
+            <div className="relative flex-1">
+              <div className="mb-1.5 text-xs text-text-muted">
                 {t('node.videoGen.endFrame')}
-                <span className="ml-1 text-[10px] text-text-muted/60">
-                  ({t('node.videoGen.optional')})
-                </span>
+                <span className="ml-1 text-[10px] text-text-muted/60">({t('node.videoGen.optional')})</span>
               </div>
-              <div className="grid grid-cols-1 gap-3">
-                {incomingImageItems.map((item, index) => {
-                  const isSelected = data.endFrameUrl === item.imageUrl;
-                  return (
+              {data.endFrameUrl ? (
+                <div className="relative aspect-video overflow-hidden rounded-lg border-2 border-accent ring-2 ring-accent/30">
+                  <img
+                    src={resolveImageDisplayUrl(data.endFrameUrl)}
+                    alt={t('node.videoGen.endFrame')}
+                    className="h-full w-full object-cover"
+                  />
+                  <button
+                    className="absolute right-1 top-1 rounded-full bg-black/60 p-0.5 text-white transition-colors hover:bg-black/80"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      updateNodeData(id, { endFrameUrl: null });
+                    }}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  className="nodrag flex aspect-video w-full items-center justify-center rounded-lg border-2 border-dashed border-[rgba(15,23,42,0.25)] transition-colors hover:border-[rgba(15,23,42,0.4)] hover:bg-[rgba(15,23,42,0.04)] dark:border-[rgba(255,255,255,0.15)] dark:hover:border-[rgba(255,255,255,0.3)] dark:hover:bg-[rgba(255,255,255,0.04)]"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (incomingImageItems.length > 0) {
+                      setEndFramePickerOpen(!endFramePickerOpen);
+                      setStartFramePickerOpen(false);
+                    } else {
+                      setFrameUploadTarget('end');
+                      frameUploadRef.current?.click();
+                    }
+                  }}
+                >
+                  <ImagePlus className="h-5 w-5 text-text-muted/60" />
+                </button>
+              )}
+              {endFramePickerOpen && incomingImageItems.length > 0 && !data.endFrameUrl && (
+                <div
+                  className="nowheel absolute left-0 top-full z-30 mt-1 w-full overflow-hidden rounded-xl border border-[rgba(15,23,42,0.15)] bg-surface-dark shadow-xl dark:border-[rgba(255,255,255,0.16)]"
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
+                  <div className="ui-scrollbar nowheel max-h-[200px] overflow-y-auto p-1.5">
+                    {incomingImageItems.map((item, index) => (
+                      <button
+                        key={`end-pick-${index}`}
+                        className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs text-text-dark transition-colors hover:bg-[rgba(15,23,42,0.06)] dark:hover:bg-[rgba(255,255,255,0.08)]"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateNodeData(id, { endFrameUrl: item.imageUrl });
+                          setEndFramePickerOpen(false);
+                        }}
+                      >
+                        <img src={item.displayUrl} alt={item.label} className="h-8 w-8 rounded object-cover" draggable={false} />
+                        <span>{item.label}</span>
+                      </button>
+                    ))}
                     <button
-                      key={`end-${index}`}
+                      className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs text-text-muted transition-colors hover:bg-[rgba(15,23,42,0.06)] dark:hover:bg-[rgba(255,255,255,0.08)]"
                       onClick={(e) => {
                         e.stopPropagation();
-                        updateNodeData(id, {
-                          endFrameUrl: isSelected ? null : item.imageUrl,
-                        });
+                        setEndFramePickerOpen(false);
+                        setFrameUploadTarget('end');
+                        frameUploadRef.current?.click();
                       }}
-                      className={`relative aspect-video rounded-lg border-2 overflow-hidden transition-all ${
-                        isSelected
-                          ? 'border-accent ring-2 ring-accent/30'
-                          : 'border-[rgba(255,255,255,0.15)] hover:border-[rgba(255,255,255,0.3)]'
-                      }`}
                     >
-                      <img
-                        src={item.displayUrl}
-                        alt={item.label}
-                        className="h-full w-full object-cover"
-                      />
-                      {isSelected && (
-                        <div className="absolute inset-0 bg-accent/20 flex items-center justify-center">
-                          <div className="h-5 w-5 rounded-full bg-accent flex items-center justify-center">
-                            <span className="text-white text-xs font-bold">✓</span>
-                          </div>
-                        </div>
-                      )}
-                      <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1 py-0.5 text-[10px] text-white">
-                        {item.label}
-                      </div>
+                      <ImagePlus className="h-4 w-4" />
+                      <span>{t('node.videoGen.uploadImage')}</span>
                     </button>
-                  );
-                })}
-              </div>
-            </div>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
+
+            <input
+              ref={frameUploadRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFrameFileChange}
+            />
           </div>
         )}
 
         {/* Video Preview */}
         {data.videoUrl && !data.isGenerating && (
-          <div className="rounded-lg border border-[rgba(255,255,255,0.1)] bg-bg-dark/45 p-2 flex items-center justify-center flex-1 min-h-0">
+          <div className="rounded-lg border border-[rgba(15,23,42,0.15)] dark:border-[rgba(255,255,255,0.1)] bg-bg-dark/45 p-2 flex items-center justify-center flex-1 min-h-0">
             <video
               src={data.videoUrl}
               controls
@@ -912,7 +1008,7 @@ function VideoGenNodeComponent({
 
         {/* Generation Progress */}
         {data.isGenerating && (
-          <div className="mt-2 rounded-lg border border-[rgba(255,255,255,0.1)] bg-bg-dark/45 p-3 shrink-0">
+          <div className="mt-2 rounded-lg border border-[rgba(15,23,42,0.15)] dark:border-[rgba(255,255,255,0.1)] bg-bg-dark/45 p-3 shrink-0">
             <div className="mb-2 flex items-center justify-between text-sm text-text-muted">
               <span>{t('node.videoGen.generating')}</span>
               <span>{Math.round(pollingProgress)}%</span>
