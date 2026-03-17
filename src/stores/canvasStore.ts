@@ -1361,7 +1361,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     );
 
     const existingGroupCount = state.nodes.filter((node) => node.type === CANVAS_NODE_TYPES.group).length;
-    const groupDisplayName = `组 ${existingGroupCount + 1}`;
+    const groupDisplayName = `Group ${existingGroupCount + 1}`;
     const groupNode = canvasNodeFactory.createNode(
       CANVAS_NODE_TYPES.group,
       { x: groupX, y: groupY },

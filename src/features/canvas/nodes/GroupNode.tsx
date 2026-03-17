@@ -1,5 +1,6 @@
 import { memo, useMemo } from 'react';
 import { LayoutGrid } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import { NodeHeader, NODE_HEADER_FLOATING_POSITION_CLASS } from '@/features/canvas/ui/NodeHeader';
 import { NodeResizeHandle } from '@/features/canvas/ui/NodeResizeHandle';
@@ -14,17 +15,18 @@ type GroupNodeProps = {
 };
 
 export const GroupNode = memo(({ id, data, selected }: GroupNodeProps) => {
+  const { t } = useTranslation();
   const updateNodeData = useCanvasStore((state) => state.updateNodeData);
   const resolvedTitle = useMemo(
-    () => resolveNodeDisplayName(CANVAS_NODE_TYPES.group, data),
-    [data]
+    () => resolveNodeDisplayName(CANVAS_NODE_TYPES.group, data, t),
+    [data, t]
   );
 
   return (
     <div
-      className={`group relative h-full w-full overflow-visible rounded-[18px] border ${selected
-        ? 'border-accent shadow-[0_0_0_1px_rgba(59,130,246,0.35)]'
-        : 'border-[rgba(15,23,42,0.2)] dark:border-[rgba(255,255,255,0.26)]'
+      className={`group relative h-full w-full overflow-visible rounded-[var(--node-radius)] border-2 ${selected
+        ? 'border-accent shadow-[0_0_0_2px_rgba(59,130,246,0.35)]'
+        : 'border-[rgba(15,23,42,0.45)] hover:border-[rgba(15,23,42,0.58)] dark:border-[rgba(255,255,255,0.22)] dark:hover:border-[rgba(255,255,255,0.34)]'
         }`}
       style={{
         backgroundColor: 'var(--group-node-bg)',

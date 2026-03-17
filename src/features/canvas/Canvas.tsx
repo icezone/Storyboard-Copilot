@@ -52,6 +52,7 @@ import { nodeTypes } from './nodes';
 import { edgeTypes } from './edges';
 import { NodeSelectionMenu } from './NodeSelectionMenu';
 import { SelectedNodeOverlay } from './ui/SelectedNodeOverlay';
+import { MultiSelectToolbar } from './ui/MultiSelectToolbar';
 import { NodeToolDialog } from './ui/NodeToolDialog';
 import { ImageViewerModal } from './ui/ImageViewerModal';
 import { MissingApiKeyHint } from '@/features/settings/MissingApiKeyHint';
@@ -252,6 +253,14 @@ export function Canvas() {
   const isRestoringCanvasRef = useRef(true);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const copiedSnapshotRef = useRef<ClipboardSnapshot | null>(null);
+
+  const rightDragStartRef = useRef<{ x: number; y: number } | null>(null);
+  const [selectionRect, setSelectionRect] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
   const pasteIterationRef = useRef(0);
   const pasteImageHandledRef = useRef(false);
   const activeGenerationPollNodeIdsRef = useRef(new Set<string>());
@@ -1582,8 +1591,106 @@ export function Canvas() {
     [configuredApiKeyCount, t]
   );
 
+  const handleRightMouseDown = useCallback(
+    (e: ReactMouseEvent) => {
+      if (e.button !== 2) return;
+      const rect = wrapperRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      rightDragStartRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      setSelectionRect(null);
+    },
+    [],
+  );
+
+  const handleRightMouseMove = useCallback(
+    (e: ReactMouseEvent) => {
+      const start = rightDragStartRef.current;
+      if (!start) return;
+      const rect = wrapperRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const curX = e.clientX - rect.left;
+      const curY = e.clientY - rect.top;
+      setSelectionRect({
+        x: Math.min(start.x, curX),
+        y: Math.min(start.y, curY),
+        width: Math.abs(curX - start.x),
+        height: Math.abs(curY - start.y),
+      });
+    },
+    [],
+  );
+
+  const handleRightMouseUp = useCallback(
+    (e: ReactMouseEvent) => {
+      const start = rightDragStartRef.current;
+      rightDragStartRef.current = null;
+      if (!start) return;
+
+      const rect = wrapperRef.current?.getBoundingClientRect();
+      if (!rect) {
+        setSelectionRect(null);
+        return;
+      }
+
+      const curX = e.clientX - rect.left;
+      const curY = e.clientY - rect.top;
+      const hasDragged = Math.abs(curX - start.x) > 5 || Math.abs(curY - start.y) > 5;
+
+      if (!hasDragged) {
+        setSelectionRect(null);
+        return;
+      }
+
+      const selLeft = Math.min(start.x, curX);
+      const selTop = Math.min(start.y, curY);
+      const selRight = Math.max(start.x, curX);
+      const selBottom = Math.max(start.y, curY);
+
+      const flowTL = reactFlowInstance.screenToFlowPosition({
+        x: selLeft + rect.left,
+        y: selTop + rect.top,
+      });
+      const flowBR = reactFlowInstance.screenToFlowPosition({
+        x: selRight + rect.left,
+        y: selBottom + rect.top,
+      });
+
+      const { setNodes } = reactFlowInstance;
+      setNodes((prev) =>
+        prev.map((node) => {
+          const w = node.measured?.width ?? node.width ?? DEFAULT_NODE_WIDTH;
+          const h = node.measured?.height ?? node.height ?? 200;
+          const nx = node.position.x;
+          const ny = node.position.y;
+
+          const overlaps =
+            nx + w > flowTL.x &&
+            nx < flowBR.x &&
+            ny + h > flowTL.y &&
+            ny < flowBR.y;
+
+          return overlaps ? { ...node, selected: true } : { ...node, selected: false };
+        }),
+      );
+
+      setSelectionRect(null);
+    },
+    [reactFlowInstance],
+  );
+
+  const handleContextMenu = useCallback((e: ReactMouseEvent) => {
+    e.preventDefault();
+  }, []);
+
   return (
-    <div ref={wrapperRef} className="relative h-full w-full">
+    <div
+      ref={wrapperRef}
+      className="relative h-full w-full"
+      onMouseDown={handleRightMouseDown}
+      onMouseMove={handleRightMouseMove}
+      onMouseUp={handleRightMouseUp}
+      onContextMenu={handleContextMenu}
+    >
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -1629,6 +1736,27 @@ export function Canvas() {
 
         <SelectedNodeOverlay />
       </ReactFlow>
+
+      {selectionRect && (
+        <div
+          className="pointer-events-none absolute z-[9999] rounded border border-accent/60 bg-accent/10"
+          style={{
+            left: selectionRect.x,
+            top: selectionRect.y,
+            width: selectionRect.width,
+            height: selectionRect.height,
+          }}
+        />
+      )}
+
+      <MultiSelectToolbar
+        onGroup={(ids) => {
+          const created = groupNodes(ids);
+          if (created) {
+            scheduleCanvasPersist(0);
+          }
+        }}
+      />
 
       {nodes.length === 0 && emptyHint}
       {nodes.length > 0 && configuredApiKeyCount === 0 && (

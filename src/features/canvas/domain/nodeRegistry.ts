@@ -149,7 +149,7 @@ const groupNodeDefinition: CanvasNodeDefinition<GroupNodeData> = {
   },
   createDefaultData: () => ({
     displayName: DEFAULT_NODE_DISPLAY_NAME[CANVAS_NODE_TYPES.group],
-    label: '组',
+    label: 'Group',
   }),
 };
 
