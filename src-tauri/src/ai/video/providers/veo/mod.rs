@@ -119,9 +119,14 @@ impl VeoProvider {
         // Validate and clamp seed
         let validated_seed = Self::validate_seed(request.seed);
 
-        // Pass aspect ratio directly (no mapping needed)
-        // Frontend sends "16:9", "9:16", or "auto"
-        let aspect_ratio = request.aspect_ratio;
+        // Map aspect ratio: "auto" -> "Auto" (API expects capitalized)
+        let aspect_ratio = request.aspect_ratio.map(|ratio| {
+            if ratio.to_lowercase() == "auto" {
+                "Auto".to_string()
+            } else {
+                ratio
+            }
+        });
 
         let body = VeoGenerateRequest {
             model,

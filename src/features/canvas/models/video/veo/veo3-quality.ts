@@ -14,7 +14,7 @@ export const videoModel: VideoModelDefinition = {
   aspectRatios: [
     { value: '16:9', label: '16:9' },
     { value: '9:16', label: '9:16' },
-    { value: 'auto', label: 'Auto' },
+    { value: 'Auto', label: 'Auto' },
   ],
   supportsAudio: false,
   supportsSeed: true,
