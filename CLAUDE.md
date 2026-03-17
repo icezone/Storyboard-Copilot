@@ -125,6 +125,9 @@
 - 选中覆盖层 `SelectedNodeOverlay` 只承载轻量通用覆盖能力（如工具条），节点核心业务输入区应内聚到节点组件本体（例如 `ImageEditNode`）。
 - 对话框支持“打开/关闭”过渡，避免突兀闪烁。
 - 明暗主题要可读，避免高饱和蓝色抢占焦点（导航图已优化为灰黑系）。
+- 节点外边框颜色必须同时适配明暗主题：明亮模式使用 `rgba(15,23,42,0.45)`，暗黑模式使用 `dark:border-[rgba(255,255,255,0.22)]`。节点内部边框同理：明亮模式 `rgba(15,23,42,0.15)`，暗黑模式 `dark:border-[rgba(255,255,255,0.1)]`。禁止仅写 `rgba(255,255,255,...)` 不带 `dark:` 前缀。
+- 多选节点时画布上方显示 `MultiSelectToolbar`（`src/features/canvas/ui/MultiSelectToolbar.tsx`），提供"编组"等批量操作。
+- 画布支持右键拖拽框选节点（Canvas.tsx 中的 `handleRightMouseDown/Move/Up`），浏览器默认右键菜单已禁用。
 - 快捷键应避开输入态（`input/textarea/contentEditable`）避免误触。
 
 ## 6. 命令与验证
@@ -338,6 +341,13 @@ npm run release -- patch --notes-file docs/releases/v0.1.12.md
 1. 先在 `zh.json` 增加新 key。
 2. 同步在 `en.json` 增加相同 key（不要缺语言键）。
 3. 代码里只引用 key，不写 fallback 字面量。
+
+### 11.5 节点默认标题 i18n
+
+- 节点默认显示名定义在 `src/features/canvas/domain/nodeDisplay.ts`。
+- `resolveNodeDisplayName(type, data, t?)` 接受可选 `t` 函数；节点组件中必须传入 `t` 以实现运行时语言切换。
+- i18n key 统一放在 `nodeDisplayName.*`（如 `nodeDisplayName.group`、`nodeDisplayName.videoGen`）。
+- 已持久化的中文默认名（如 `'分组'`、`'AI 视频'`）会自动识别为"未自定义"，渲染时按当前语言重新解析。
 
 ### 11.3 动态值与复数
 
