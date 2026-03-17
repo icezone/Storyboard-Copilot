@@ -133,7 +133,7 @@ impl Sora2Provider {
         };
 
         let body = Sora2CreateTaskRequest {
-            model: format!("{}/video", model),
+            model,
             input,
         };
 
