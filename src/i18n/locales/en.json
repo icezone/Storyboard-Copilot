@@ -3,6 +3,20 @@
     "title": "Storyboard Copilot",
     "subtitle": "AI Storyboard Tool"
   },
+  "nodeDisplayName": {
+    "upload": "Upload Image",
+    "imageEdit": "AI Image",
+    "exportImage": "Result Image",
+    "textAnnotation": "Text Annotation",
+    "group": "Group",
+    "storyboardSplit": "Split Result",
+    "storyboardGen": "Storyboard Gen",
+    "videoGen": "AI Video",
+    "videoResult": "Video Result",
+    "storyboardGenOutput": "Storyboard Output",
+    "storyboardSplitExport": "Split Export",
+    "storyboardFrameEdit": "Storyboard Frame"
+  },
   "common": {
     "save": "Save",
     "cancel": "Cancel",
@@ -64,6 +78,7 @@
     "copied": "Copied",
     "download": "Download",
     "ungroup": "Ungroup",
+    "groupSelected": "Group",
     "saveAs": "Save as...",
     "noDownloadPresetPathsHint": "No preset path. Add one in Settings > General.",
     "storyboardLine": "Storyboard {{index}}: {{content}}"
@@ -174,7 +189,9 @@
       "noPrompt": "Please enter a prompt",
       "noApiKey": "Please set API key in Settings",
       "noApiKeyDetails": "Kling provider API key is required for video generation. Please add it in Settings.",
-      "klingElements": "Kling Elements"
+      "klingElements": "Kling Elements",
+      "uploadImage": "Upload Image",
+      "uploadFailed": "Image upload failed"
     }
   },
   "videoErrors": {

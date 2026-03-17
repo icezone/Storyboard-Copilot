@@ -37,7 +37,7 @@ function VideoResultNodeComponent({
   const videoDownloadPresetPaths = useSettingsStore((state) => state.videoDownloadPresetPaths);
   const [downloading, setDownloading] = useState(false);
 
-  const resolvedTitle = resolveNodeDisplayName(CANVAS_NODE_TYPES.videoResult, data);
+  const resolvedTitle = resolveNodeDisplayName(CANVAS_NODE_TYPES.videoResult, data, t);
 
   // Find source nodes (image inputs)
   const sourceNodeIds = useMemo(() => {
@@ -156,7 +156,7 @@ function VideoResultNodeComponent({
         ${
           selected
             ? 'border-accent shadow-accent/30'
-            : 'border-[rgba(15,23,42,0.22)] hover:border-[rgba(15,23,42,0.34)] dark:border-[rgba(255,255,255,0.22)] dark:hover:border-[rgba(255,255,255,0.34)]'
+            : 'border-[rgba(15,23,42,0.45)] hover:border-[rgba(15,23,42,0.58)] dark:border-[rgba(255,255,255,0.22)] dark:hover:border-[rgba(255,255,255,0.34)]'
         }
       `}
       style={{ width: `${VIDEO_RESULT_NODE_WIDTH}px`, height: `${VIDEO_RESULT_NODE_HEIGHT}px` }}
@@ -170,7 +170,7 @@ function VideoResultNodeComponent({
       />
 
       {/* Video Preview */}
-      <div className="relative min-h-0 flex-1 rounded-lg border border-[rgba(255,255,255,0.1)] bg-bg-dark/45 overflow-hidden">
+      <div className="relative min-h-0 flex-1 rounded-lg border border-[rgba(15,23,42,0.15)] dark:border-[rgba(255,255,255,0.1)] bg-bg-dark/45 overflow-hidden">
         <video
           src={data.videoUrl}
           controls

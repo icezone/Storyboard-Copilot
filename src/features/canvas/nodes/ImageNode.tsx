@@ -78,8 +78,8 @@ export const ImageNode = memo(({ id, data, selected, type, width, height }: Imag
   const resolvedWidth = resolveNodeDimension(width, compactSize.width);
   const resolvedHeight = resolveNodeDimension(height, compactSize.height);
   const resolvedTitle = useMemo(
-    () => resolveNodeDisplayName(type as CanvasNodeType, data),
-    [data, type]
+    () => resolveNodeDisplayName(type as CanvasNodeType, data, t),
+    [data, type, t]
   );
 
   useEffect(() => {
@@ -157,7 +157,7 @@ export const ImageNode = memo(({ id, data, selected, type, width, height }: Imag
             : 'border-red-500/70 bg-[rgba(127,29,29,0.12)] hover:border-red-400/80 dark:border-red-500/70 dark:hover:border-red-400/80')
           : selected
           ? 'border-accent shadow-[0_0_0_1px_rgba(59,130,246,0.32)]'
-          : 'border-[rgba(15,23,42,0.22)] hover:border-[rgba(15,23,42,0.34)] dark:border-[rgba(255,255,255,0.22)] dark:hover:border-[rgba(255,255,255,0.34)]'}
+          : 'border-[rgba(15,23,42,0.45)] hover:border-[rgba(15,23,42,0.58)] dark:border-[rgba(255,255,255,0.22)] dark:hover:border-[rgba(255,255,255,0.34)]'}
       `}
       style={{ width: resolvedWidth, height: resolvedHeight }}
       onClick={() => setSelectedNode(id)}

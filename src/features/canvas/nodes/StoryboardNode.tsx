@@ -15,6 +15,7 @@ import {
   type NodeProps,
 } from '@xyflow/react';
 import { Download, FolderOpen, ImagePlus, SlidersHorizontal, SquareArrowOutUpRight } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { open } from '@tauri-apps/plugin-dialog';
 import { openPath, revealItemInDir } from '@tauri-apps/plugin-opener';
 import { join } from '@tauri-apps/api/path';
@@ -419,6 +420,7 @@ const FrameCard = memo(
 FrameCard.displayName = 'FrameCard';
 
 export const StoryboardNode = memo(({ id, data, selected, width, height }: StoryboardNodeProps) => {
+  const { t } = useTranslation();
   const updateNodeInternals = useUpdateNodeInternals();
   const rootRef = useRef<HTMLDivElement>(null);
   const pickerMenuRef = useRef<HTMLDivElement>(null);
@@ -480,8 +482,8 @@ export const StoryboardNode = memo(({ id, data, selected, width, height }: Story
   }, [id, resolvedNodeHeight, resolvedNodeWidth, updateNodeInternals]);
 
   const resolvedTitle = useMemo(
-    () => resolveNodeDisplayName(CANVAS_NODE_TYPES.storyboardSplit, data),
-    [data]
+    () => resolveNodeDisplayName(CANVAS_NODE_TYPES.storyboardSplit, data, t),
+    [data, t]
   );
 
   const exportOptions = useMemo(
@@ -1021,7 +1023,7 @@ export const StoryboardNode = memo(({ id, data, selected, width, height }: Story
         group relative flex h-full flex-col overflow-visible rounded-[var(--node-radius)] border bg-surface-dark/90 p-2 transition-colors duration-150
         ${selected
           ? 'border-accent shadow-[0_0_0_1px_rgba(59,130,246,0.32)]'
-          : 'border-[rgba(15,23,42,0.22)] hover:border-[rgba(15,23,42,0.34)] dark:border-[rgba(255,255,255,0.22)] dark:hover:border-[rgba(255,255,255,0.34)]'}
+          : 'border-[rgba(15,23,42,0.45)] hover:border-[rgba(15,23,42,0.58)] dark:border-[rgba(255,255,255,0.22)] dark:hover:border-[rgba(255,255,255,0.34)]'}
       `}
       style={{ width: `${resolvedNodeWidth}px`, height: `${resolvedNodeHeight}px` }}
       onClick={() => setSelectedNode(id)}

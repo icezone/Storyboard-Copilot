@@ -111,8 +111,8 @@ export const UploadNode = memo(({ id, data, selected, width, height }: UploadNod
       return sourceFileName;
     }
 
-    return resolveNodeDisplayName(CANVAS_NODE_TYPES.upload, data);
-  }, [data, useUploadFilenameAsNodeTitle]);
+    return resolveNodeDisplayName(CANVAS_NODE_TYPES.upload, data, t);
+  }, [data, useUploadFilenameAsNodeTitle, t]);
 
   const clearTransientPreview = useCallback(() => {
     setTransientPreviewUrl((current) => {
@@ -309,7 +309,7 @@ export const UploadNode = memo(({ id, data, selected, width, height }: UploadNod
         group relative overflow-visible rounded-[var(--node-radius)] border bg-surface-dark/85 p-0 transition-colors duration-150
         ${selected
           ? 'border-accent shadow-[0_0_0_1px_rgba(59,130,246,0.32)]'
-          : 'border-[rgba(15,23,42,0.22)] hover:border-[rgba(15,23,42,0.34)] dark:border-[rgba(255,255,255,0.22)] dark:hover:border-[rgba(255,255,255,0.34)]'}
+          : 'border-[rgba(15,23,42,0.45)] hover:border-[rgba(15,23,42,0.58)] dark:border-[rgba(255,255,255,0.22)] dark:hover:border-[rgba(255,255,255,0.34)]'}
       `}
       style={{ width: resolvedWidth, height: resolvedHeight }}
       onClick={handleNodeClick}

@@ -3,6 +3,20 @@
     "title": "分镜助手",
     "subtitle": "Storyboard Copilot"
   },
+  "nodeDisplayName": {
+    "upload": "上传图片",
+    "imageEdit": "AI 图片",
+    "exportImage": "结果图片",
+    "textAnnotation": "文本注释",
+    "group": "分组",
+    "storyboardSplit": "切割结果",
+    "storyboardGen": "分镜生成",
+    "videoGen": "AI 视频",
+    "videoResult": "视频结果",
+    "storyboardGenOutput": "分镜输出",
+    "storyboardSplitExport": "切割导出",
+    "storyboardFrameEdit": "分镜帧"
+  },
   "common": {
     "save": "保存",
     "cancel": "取消",
@@ -64,6 +78,7 @@
     "copied": "已复制",
     "download": "下载",
     "ungroup": "解散",
+    "groupSelected": "编组",
     "saveAs": "另存为...",
     "noDownloadPresetPathsHint": "暂无预设路径，请在设置 - 通用中添加",
     "storyboardLine": "分镜 {{index}}：{{content}}"
@@ -174,7 +189,9 @@
       "noPrompt": "请输入提示词",
       "noApiKey": "请在设置中填写 API Key",
       "noApiKeyDetails": "视频生成需要 Kling 提供商的 API Key，请在设置中添加。",
-      "klingElements": "Kling 元素"
+      "klingElements": "Kling 元素",
+      "uploadImage": "上传图片",
+      "uploadFailed": "图片上传失败"
     }
   },
   "videoErrors": {
